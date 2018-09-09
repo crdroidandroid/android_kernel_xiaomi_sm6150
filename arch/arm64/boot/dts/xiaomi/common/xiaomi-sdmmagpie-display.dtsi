@@ -27,11 +27,15 @@
     status = "disabled";
 };
 
+&sde_dsi1 {
+    status = "disabled";
+};
+
 /* From sdmmagpie-sde.dtsi start */
 &mdss_mdp {
     clock-rate = <0 0 0 0 344000000 19200000 200000000
       200000000>;
     qcom,sde-num-mnoc-ports = <1>;
     qcom,sde-axi-bus-width = <32>;
-    connectors = <&sde_rscc &sde_wb &sde_dsi>;
+    connectors = <&sde_wb &sde_dsi>;
 };
