@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.14.212 Kernel Configuration
+# Linux/arm64 4.14.216 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -637,7 +637,7 @@ CONFIG_ARM64_SW_TTBR0_PAN=y
 #
 CONFIG_ARM64_HW_AFDBM=y
 CONFIG_ARM64_PAN=y
-# CONFIG_ARM64_LSE_ATOMICS is not set
+CONFIG_ARM64_LSE_ATOMICS=y
 # CONFIG_ARM64_VHE is not set
 
 #
