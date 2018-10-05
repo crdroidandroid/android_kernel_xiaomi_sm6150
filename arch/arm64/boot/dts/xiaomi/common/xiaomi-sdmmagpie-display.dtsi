@@ -37,5 +37,5 @@
       200000000>;
     qcom,sde-num-mnoc-ports = <1>;
     qcom,sde-axi-bus-width = <32>;
-    connectors = <&sde_wb &sde_dsi>;
+    connectors = <&sde_rscc &sde_wb &sde_dsi>;
 };
