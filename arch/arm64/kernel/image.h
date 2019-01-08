@@ -105,9 +105,6 @@ __efistub___memmove		= __pi_memmove;
 __efistub___memset		= __pi_memset;
 #endif
 
-__efistub__text			= _text;
-__efistub__end			= _end;
-__efistub__edata		= _edata;
 __efistub_screen_info		= screen_info;
 
 #endif
