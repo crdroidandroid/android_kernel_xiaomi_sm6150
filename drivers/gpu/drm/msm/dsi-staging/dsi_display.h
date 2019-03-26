@@ -715,4 +715,11 @@ int dsi_display_get_panel_vfp(void *display,
 
 struct dsi_display *get_primary_display(void);
 
+/**
+ * dsi_display_set_idle_hint - gives hint to display whether display is idle
+ * @display: Pointer to private display handle
+ * @is_idle: true if display is idle, false otherwise
+ */
+void dsi_display_set_idle_hint(void *display, bool is_idle);
+
 #endif /* _DSI_DISPLAY_H_ */

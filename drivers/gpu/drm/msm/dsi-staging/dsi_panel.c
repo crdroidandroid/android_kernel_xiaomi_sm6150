@@ -43,6 +43,8 @@
 #include <linux/export.h>
 #include <linux/double_click.h>
 
+#include "sde_trace.h"
+
 /**
  * topology is currently defined by a set of following 3 values:
  * 1. num of layer mixers
@@ -5909,4 +5911,26 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel)
 error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
+}
+
+int dsi_panel_idle(struct dsi_panel *panel)
+{
+	if (unlikely(!panel))
+		return -EINVAL;
+
+	if (panel->funcs && panel->funcs->idle)
+		return panel->funcs->idle(panel);
+
+	return 0;
+}
+
+int dsi_panel_wakeup(struct dsi_panel *panel)
+{
+	if (unlikely(!panel))
+		return -EINVAL;
+
+	if (panel->funcs && panel->funcs->wakeup)
+		return panel->funcs->wakeup(panel);
+
+	return 0;
 }
