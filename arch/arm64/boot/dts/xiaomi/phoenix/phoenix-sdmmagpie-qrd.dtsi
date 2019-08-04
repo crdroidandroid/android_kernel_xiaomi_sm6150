@@ -1,0 +1,12 @@
+&sdhc_2 {
+    cd-gpios = <&tlmm 69 GPIO_ACTIVE_HIGH>;
+    status = "ok";
+};
+
+&qupv3_se9_i2c {
+    status = "ok";
+};
+
+&smb1390 {
+    status = "ok";
+};
