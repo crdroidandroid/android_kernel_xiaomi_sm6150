@@ -1,0 +1,7 @@
+&qupv3_se9_i2c {
+    status = "ok";
+};
+
+&smb1390 {
+    status = "ok";
+};
