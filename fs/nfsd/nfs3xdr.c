@@ -31,14 +31,14 @@ static u32	nfs3_ftypes[] = {
  * XDR functions for basic NFS types
  */
 static __be32 *
-encode_time3(__be32 *p, struct timespec *time)
+encode_time3(__be32 *p, struct timespec64 *time)
 {
 	*p++ = htonl((u32) time->tv_sec); *p++ = htonl(time->tv_nsec);
 	return p;
 }
 
 static __be32 *
-decode_time3(__be32 *p, struct timespec *time)
+decode_time3(__be32 *p, struct timespec64 *time)
 {
 	time->tv_sec = ntohl(*p++);
 	time->tv_nsec = ntohl(*p++);
@@ -165,7 +165,6 @@ static __be32 *
 encode_fattr3(struct svc_rqst *rqstp, __be32 *p, struct svc_fh *fhp,
 	      struct kstat *stat)
 {
-	struct timespec ts;
 	*p++ = htonl(nfs3_ftypes[(stat->mode & S_IFMT) >> 12]);
 	*p++ = htonl((u32) (stat->mode & S_IALLUGO));
 	*p++ = htonl((u32) stat->nlink);
@@ -181,12 +180,9 @@ encode_fattr3(struct svc_rqst *rqstp, __be32 *p, struct svc_fh *fhp,
 	*p++ = htonl((u32) MINOR(stat->rdev));
 	p = encode_fsid(p, fhp);
 	p = xdr_encode_hyper(p, stat->ino);
-	ts = timespec64_to_timespec(stat->atime);
-	p = encode_time3(p, &ts);
-	ts = timespec64_to_timespec(stat->mtime);
-	p = encode_time3(p, &ts);
-	ts = timespec64_to_timespec(stat->ctime);
-	p = encode_time3(p, &ts);
+	p = encode_time3(p, &stat->atime);
+	p = encode_time3(p, &stat->mtime);
+	p = encode_time3(p, &stat->ctime);
 
 	return p;
 }
@@ -328,7 +324,7 @@ nfs3svc_decode_sattrargs(struct svc_rqst *rqstp, __be32 *p)
 	p = decode_sattr3(p, &args->attrs);
 
 	if ((args->check_guard = ntohl(*p++)) != 0) { 
-		struct timespec time; 
+		struct timespec64 time;
 		p = decode_time3(p, &time);
 		args->guardtime = time.tv_sec;
 	}
