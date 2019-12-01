@@ -228,6 +228,8 @@ struct dsi_panel {
 
 	int hbm_mode;
 	int fps_mode;
+	bool is_tddi_flag;
+	bool panel_dead_flag;
 
 	bool lp11_init;
 	bool ulps_feature_enabled;
