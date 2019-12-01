@@ -4773,3 +4773,33 @@ int dsi_panel_get_lockdowninfo_for_tp(unsigned char *plockdowninfo)
 	}
 }
 EXPORT_SYMBOL(dsi_panel_get_lockdowninfo_for_tp);
+
+int dsi_panel_apply_fps_mode(struct dsi_panel *panel)
+{
+	struct msm_display_info *msm_display_info;
+	int rc, fps_mode;
+
+	mutex_lock(&panel->panel_lock);
+	switch(fps_mode) {
+		case 0x1:
+			panel->qsync_min_fps = 60;
+			msm_display_info->qsync_min_fps = 60;
+			break;
+		case 0x2:
+			panel->qsync_min_fps = 90;
+			msm_display_info->qsync_min_fps = 90;
+			break;
+		case 0x3:
+			panel->qsync_min_fps = 120;
+			msm_display_info->qsync_min_fps = 120;
+			break;
+		default:
+			panel->qsync_min_fps = 60;
+			msm_display_info->qsync_min_fps = 60;
+		break;
+	}
+
+	mutex_unlock(&panel->panel_lock);
+
+	return rc;
+}

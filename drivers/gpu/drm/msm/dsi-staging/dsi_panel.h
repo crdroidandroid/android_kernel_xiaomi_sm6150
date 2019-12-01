@@ -227,6 +227,7 @@ struct dsi_panel {
 	struct dsi_parser_utils utils;
 
 	int hbm_mode;
+	int fps_mode;
 
 	bool lp11_init;
 	bool ulps_feature_enabled;
@@ -379,5 +380,7 @@ int dsi_panel_set_fod_hbm(struct dsi_panel *panel, bool status);
 u32 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel);
 
 int dsi_panel_apply_hbm_mode(struct dsi_panel *panel);
+
+int dsi_panel_apply_fps_mode(struct dsi_panel *panel);
 
 #endif /* _DSI_PANEL_H_ */
