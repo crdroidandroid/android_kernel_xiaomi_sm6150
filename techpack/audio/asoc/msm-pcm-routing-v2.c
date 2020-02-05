@@ -39,7 +39,7 @@
 #include <dsp/q6core.h>
 #include <dsp/q6common.h>
 #include <dsp/audio_cal_utils.h>
-#if (defined CONFIG_MACH_XIAOMI_F10) || (defined CONFIG_MACH_XIAOMI_G7B)
+#ifdef CONFIG_MACH_XIAOMI_G7B
 #include <dsp/apr_elliptic.h>
 #include <elliptic/elliptic_mixer_controls.h>
 #endif
@@ -24059,7 +24059,7 @@ static int msm_routing_probe(struct snd_soc_platform *platform)
 			port_multi_channel_map_mixer_controls,
 			ARRAY_SIZE(port_multi_channel_map_mixer_controls));
 
-#if (defined CONFIG_MACH_XIAOMI_F10) || (defined CONFIG_MACH_XIAOMI_G7B)
+#ifdef CONFIG_MACH_XIAOMI_G7B
 	elliptic_add_platform_controls(platform);
 #endif
 	return 0;
