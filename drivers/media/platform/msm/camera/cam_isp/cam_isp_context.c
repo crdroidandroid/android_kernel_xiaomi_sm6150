@@ -172,8 +172,13 @@ static void __cam_isp_ctx_update_state_monitor_array(
 	ctx_isp->cam_isp_ctx_state_monitor[iterator].frame_id =
 		ctx_isp->frame_id;
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp =
+		jiffies_to_msecs(jiffies) - ctx_isp->init_timestamp;
+#else
 	ctx_isp->cam_isp_ctx_state_monitor[iterator].evt_time_stamp =
 		jiffies_to_msecs(jiffies);
+#endif
 }
 
 static const char *__cam_isp_ctx_substate_val_to_type(
@@ -190,6 +195,10 @@ static const char *__cam_isp_ctx_substate_val_to_type(
 		return "BUBBLE";
 	case CAM_ISP_CTX_ACTIVATED_BUBBLE_APPLIED:
 		return "BUBBLE_APPLIED";
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	case CAM_ISP_CTX_ACTIVATED_HW_ERROR:
+		return "HW_ERROR";
+#endif
 	case CAM_ISP_CTX_ACTIVATED_HALT:
 		return "HALT";
 	default:
@@ -519,6 +528,20 @@ static const char *__cam_isp_resource_handle_id_to_type(
 		return "STATS_RS";
 	case CAM_ISP_IFE_OUT_RES_STATS_CS:
 		return "STATS_CS";
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	case CAM_ISP_IFE_OUT_RES_STATS_IHIST:
+		return "STATS_IHIST";
+	case CAM_ISP_IFE_OUT_RES_FULL_DISP:
+		return "FULL_DISP";
+	case CAM_ISP_IFE_OUT_RES_DS4_DISP:
+		return "DS4_DISP";
+	case CAM_ISP_IFE_OUT_RES_DS16_DISP:
+		return "DS16_DISP";
+	case CAM_ISP_IFE_OUT_RES_RDI_RD:
+		return "RDI_RD";
+	case CAM_ISP_IFE_OUT_RES_LCR:
+		return "LCR";
+#endif
 	default:
 		return "CAM_ISP_Invalid_Resource_Type";
 	}
@@ -889,6 +912,7 @@ static int __cam_isp_ctx_reg_upd_in_epoch_state(
 	return 0;
 }
 
+#if !((defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B))
 static int __cam_isp_ctx_reg_upd_in_activated_state(
 	struct cam_isp_context *ctx_isp, void *evt_data)
 {
@@ -950,6 +974,51 @@ static int __cam_isp_ctx_reg_upd_in_activated_state(
 end:
 	return rc;
 }
+#else
+static int __cam_isp_ctx_reg_upd_in_applied_state(
+	struct cam_isp_context *ctx_isp, void *evt_data)
+{
+	int rc = 0;
+	struct cam_ctx_request  *req;
+	struct cam_context      *ctx = ctx_isp->base;
+	struct cam_isp_ctx_req  *req_isp;
+	uint64_t                 request_id = 0;
+
+	if (list_empty(&ctx->wait_req_list)) {
+		CAM_ERR(CAM_ISP, "Reg upd ack with no waiting request");
+		goto end;
+	}
+	req = list_first_entry(&ctx->wait_req_list,
+			struct cam_ctx_request, list);
+	list_del_init(&req->list);
+
+	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
+	if (req_isp->num_fence_map_out != 0) {
+		list_add_tail(&req->list, &ctx->active_req_list);
+		ctx_isp->active_req_cnt++;
+		request_id = req->request_id;
+		CAM_DBG(CAM_REQ,
+			"move request %lld to active list(cnt = %d), ctx %u",
+			req->request_id, ctx_isp->active_req_cnt, ctx->ctx_id);
+	} else {
+		/* no io config, so the request is completed. */
+		list_add_tail(&req->list, &ctx->free_req_list);
+		CAM_DBG(CAM_ISP,
+			"move active request %lld to free list(cnt = %d), ctx %u",
+			req->request_id, ctx_isp->active_req_cnt, ctx->ctx_id);
+	}
+
+	/*
+	 * This function only called directly from applied and bubble applied
+	 * state so change substate here.
+	 */
+	ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_EPOCH;
+	CAM_DBG(CAM_ISP, "next substate %d", ctx_isp->substate_activated);
+
+end:
+	return rc;
+}
+#endif
 
 static int __cam_isp_ctx_notify_sof_in_activated_state(
 	struct cam_isp_context *ctx_isp, void *evt_data)
@@ -1095,6 +1164,36 @@ static int __cam_isp_ctx_reg_upd_in_hw_error(
 	return 0;
 }
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+static int __cam_isp_ctx_sof_in_activated_state(
+	struct cam_isp_context *ctx_isp, void *evt_data)
+{
+	int rc = 0;
+	struct cam_isp_hw_sof_event_data      *sof_event_data = evt_data;
+	struct cam_ctx_request *req = NULL;
+	struct cam_context *ctx = ctx_isp->base;
+	uint64_t request_id = 0;
+
+	/* First check if there is a valid request in active list */
+	list_for_each_entry(req, &ctx->active_req_list, list) {
+		if (req->request_id > ctx_isp->req_info.reported_req_id) {
+			request_id = req->request_id;
+			break;
+		}
+	}
+
+	/*
+	 * If nothing in active list, current request might have not moved
+	 * from wait to active list. This could happen if REG_UPDATE to sw
+	 * is coming immediately after SOF
+	 */
+	if (request_id == 0) {
+		req = list_first_entry(&ctx->wait_req_list,
+			struct cam_ctx_request, list);
+		if (req)
+			request_id = req->request_id;
+	}
+#else
 static int __cam_isp_ctx_sof_in_activated_state(
 	struct cam_isp_context *ctx_isp, void *evt_data)
 {
@@ -1106,6 +1205,7 @@ static int __cam_isp_ctx_sof_in_activated_state(
 	req = list_last_entry(&ctx->pending_req_list,
 		struct cam_ctx_request, list);
 
+#endif
 	if (!evt_data) {
 		CAM_ERR(CAM_ISP, "in valid sof event data");
 		return -EINVAL;
@@ -1229,6 +1329,11 @@ static int __cam_isp_ctx_epoch_in_applied(struct cam_isp_context *ctx_isp,
 		notify.dev_hdl = ctx->dev_hdl;
 		notify.req_id = req->request_id;
 		notify.error = CRM_KMD_ERR_BUBBLE;
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+		CAM_WARN(CAM_ISP,
+			"Notify CRM about Bubble req %lld frame %lld, ctx %u",
+			req->request_id, ctx_isp->frame_id, ctx->ctx_id);
+#endif
 		ctx->ctx_crm_intf->notify_err(&notify);
 		atomic_set(&ctx_isp->process_bubble, 1);
 		CAM_DBG(CAM_ISP, "Notify CRM about Bubble frame %lld, ctx %u",
@@ -1402,11 +1507,16 @@ static int __cam_isp_ctx_epoch_in_bubble_applied(
 		notify.dev_hdl = ctx->dev_hdl;
 		notify.req_id = req->request_id;
 		notify.error = CRM_KMD_ERR_BUBBLE;
-		ctx->ctx_crm_intf->notify_err(&notify);
 		atomic_set(&ctx_isp->process_bubble, 1);
+#if !((defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B))
+		ctx->ctx_crm_intf->notify_err(&notify);
+#endif
 		CAM_DBG(CAM_REQ,
 			"Notify CRM about Bubble req_id %llu frame %lld, ctx %u",
 			req->request_id, ctx_isp->frame_id, ctx->ctx_id);
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+		atomic_set(&ctx_isp->process_bubble, 1);
+#endif
 	} else {
 		req_isp->bubble_report = 0;
 	}
@@ -1474,7 +1584,11 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 	struct cam_ctx_request          *req_temp;
 	struct cam_isp_ctx_req          *req_isp = NULL;
 	struct cam_isp_ctx_req          *req_isp_to_report = NULL;
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	struct cam_req_mgr_error_notify  notify = {};
+#else
 	struct cam_req_mgr_error_notify  notify;
+#endif
 	uint64_t                         error_request_id = 0;
 	struct cam_hw_fence_map_entry   *fence_map_out = NULL;
 	struct cam_req_mgr_message       req_msg;
@@ -1709,8 +1823,10 @@ static int __cam_isp_ctx_fs2_sof_in_sof_state(
 	uint64_t  request_id  = 0;
 
 
+#if !((defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B))
 	req = list_last_entry(&ctx->pending_req_list,
 		struct cam_ctx_request, list);
+#endif
 
 	if (!evt_data) {
 		CAM_ERR(CAM_ISP, "in valid sof event data");
@@ -1955,7 +2071,11 @@ static struct cam_isp_ctx_irq_ops
 		.irq_ops = {
 			__cam_isp_ctx_handle_error,
 			__cam_isp_ctx_sof_in_activated_state,
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+			__cam_isp_ctx_reg_upd_in_applied_state,
+#else
 			__cam_isp_ctx_reg_upd_in_activated_state,
+#endif
 			__cam_isp_ctx_epoch_in_applied,
 			__cam_isp_ctx_notify_eof_in_activated_state,
 			__cam_isp_ctx_buf_done_in_applied,
@@ -1988,7 +2108,11 @@ static struct cam_isp_ctx_irq_ops
 		.irq_ops = {
 			__cam_isp_ctx_handle_error,
 			__cam_isp_ctx_sof_in_activated_state,
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+			__cam_isp_ctx_reg_upd_in_applied_state,
+#else
 			__cam_isp_ctx_reg_upd_in_activated_state,
+#endif
 			__cam_isp_ctx_epoch_in_bubble_applied,
 			NULL,
 			__cam_isp_ctx_buf_done_in_bubble_applied,
@@ -2061,7 +2185,11 @@ static struct cam_isp_ctx_irq_ops
 		.irq_ops = {
 			__cam_isp_ctx_handle_error,
 			__cam_isp_ctx_sof_in_activated_state,
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+			__cam_isp_ctx_reg_upd_in_applied_state,
+#else
 			__cam_isp_ctx_reg_upd_in_activated_state,
+#endif
 			__cam_isp_ctx_epoch_in_bubble_applied,
 			NULL,
 			__cam_isp_ctx_buf_done_in_bubble_applied,
@@ -2212,6 +2340,11 @@ static int __cam_isp_ctx_apply_req_in_sof(
 		CAM_ISP_CTX_ACTIVATED_APPLIED);
 	CAM_DBG(CAM_ISP, "new substate %d", ctx_isp->substate_activated);
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	if (rc)
+		CAM_DBG(CAM_ISP, "Apply failed in state %d, rc %d",
+			ctx_isp->substate_activated, rc);
+#endif
 	return rc;
 }
 
@@ -2228,6 +2361,11 @@ static int __cam_isp_ctx_apply_req_in_epoch(
 		CAM_ISP_CTX_ACTIVATED_APPLIED);
 	CAM_DBG(CAM_ISP, "new substate %d", ctx_isp->substate_activated);
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	if (rc)
+		CAM_DBG(CAM_ISP, "Apply failed in state %d, rc %d",
+			ctx_isp->substate_activated, rc);
+#endif
 	return rc;
 }
 
@@ -2243,6 +2381,11 @@ static int __cam_isp_ctx_apply_req_in_bubble(
 	rc = __cam_isp_ctx_apply_req_in_activated_state(ctx, apply,
 		CAM_ISP_CTX_ACTIVATED_BUBBLE_APPLIED);
 	CAM_DBG(CAM_ISP, "new substate %d", ctx_isp->substate_activated);
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	if (rc)
+		CAM_DBG(CAM_ISP, "Apply failed in state %d, rc %d",
+			ctx_isp->substate_activated, rc);
+#endif
 
 	return rc;
 }
@@ -2411,6 +2554,10 @@ static int __cam_isp_ctx_flush_req(struct cam_context *ctx,
 	struct cam_ctx_request           *req_temp;
 	struct cam_isp_ctx_req           *req_isp;
 	struct list_head                  flush_list;
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	struct cam_isp_context           *ctx_isp = NULL;
+	ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
+#endif
 
 	INIT_LIST_HEAD(&flush_list);
 	if (list_empty(req_list)) {
@@ -2838,6 +2985,13 @@ static int __cam_isp_ctx_rdi_only_sof_in_bubble_applied(
 		notify.dev_hdl = ctx->dev_hdl;
 		notify.req_id = req->request_id;
 		notify.error = CRM_KMD_ERR_BUBBLE;
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+		CAM_WARN(CAM_ISP,
+			"Notify CRM about Bubble req %lld frame %lld ctx %u",
+			req->request_id,
+			ctx_isp->frame_id,
+			ctx->ctx_id);
+#endif
 		ctx->ctx_crm_intf->notify_err(&notify);
 		atomic_set(&ctx_isp->process_bubble, 1);
 		CAM_DBG(CAM_ISP, "Notify CRM about Bubble frame %lld",
@@ -3145,6 +3299,11 @@ static int __cam_isp_ctx_rdi_only_apply_req_top_state(
 		CAM_ISP_CTX_ACTIVATED_APPLIED);
 	CAM_DBG(CAM_ISP, "new substate %d", ctx_isp->substate_activated);
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	if (rc)
+		CAM_ERR(CAM_ISP, "Apply failed in state %d, rc %d",
+			ctx_isp->substate_activated, rc);
+#endif
 	return rc;
 }
 
@@ -3229,6 +3388,9 @@ static int __cam_isp_ctx_release_hw_in_top_state(struct cam_context *ctx,
 	ctx_isp->req_info.last_bufdone_time_stamp = 0;
 	ctx_isp->req_info.last_reported_id_time_stamp = 0;
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	atomic64_set(&ctx_isp->state_monitor_head, -1);
+#endif
 	/*
 	 * Ideally, we should never have any active request here.
 	 * But we still add some sanity check code here to help the debug
@@ -3496,6 +3658,9 @@ free_req:
 	list_add_tail(&req->list, &ctx->free_req_list);
 	spin_unlock_bh(&ctx->lock);
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	atomic_set(&ctx_isp->process_bubble, 0);
+#endif
 	return rc;
 }
 
@@ -3614,6 +3779,9 @@ static int __cam_isp_ctx_acquire_dev_in_available(struct cam_context *ctx,
 	ctx_isp->split_acquire = false;
 	ctx->ctxt_to_hw_map = param.ctxt_to_hw_map;
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	atomic64_set(&ctx_isp->state_monitor_head, -1);
+#endif
 	kfree(isp_res);
 	isp_res = NULL;
 
@@ -3765,6 +3933,9 @@ static int __cam_isp_ctx_acquire_hw_v1(struct cam_context *ctx,
 	ctx_isp->hw_acquired = true;
 	ctx->ctxt_to_hw_map = param.ctxt_to_hw_map;
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	atomic64_set(&ctx_isp->state_monitor_head, -1);
+#endif
 	trace_cam_context_state("ISP", ctx);
 	CAM_DBG(CAM_ISP,
 		"Acquire success on session_hdl 0x%xs ctx_type %d ctx_id %u",
@@ -3927,6 +4098,9 @@ static int __cam_isp_ctx_start_dev_in_ready(struct cam_context *ctx,
 		(req_isp->num_fence_map_out) ? CAM_ISP_CTX_ACTIVATED_EPOCH :
 		CAM_ISP_CTX_ACTIVATED_SOF;
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	atomic64_set(&ctx_isp->state_monitor_head, -1);
+#endif
 	/*
 	 * Only place to change state before calling the hw due to
 	 * hardware tasklet has higher priority that can cause the
@@ -4063,6 +4237,9 @@ static int __cam_isp_ctx_stop_dev_in_activated_unlock(
 
 	atomic_set(&ctx_isp->process_bubble, 0);
 
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	atomic64_set(&ctx_isp->state_monitor_head, -1);
+#endif
 	CAM_DBG(CAM_ISP, "Stop device success next state %d on ctx %u",
 		ctx->state, ctx->ctx_id);
 
@@ -4455,10 +4632,17 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
 	ctx->substate_activated = CAM_ISP_CTX_ACTIVATED_SOF;
 	ctx->substate_machine = cam_isp_ctx_activated_state_machine;
 	ctx->substate_machine_irq = cam_isp_ctx_activated_state_machine_irq;
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+	ctx->init_timestamp = jiffies_to_msecs(jiffies);
+#endif
 
 	for (i = 0; i < CAM_CTX_REQ_MAX; i++) {
 		ctx->req_base[i].req_priv = &ctx->req_isp[i];
 		ctx->req_isp[i].base = &ctx->req_base[i];
+#if (defined CONFIG_MACH_XIAOMI_F4) || (defined CONFIG_MACH_XIAOMI_G7B)
+		/*Set default fps value to 30 FPS*/
+		ctx->req_isp[i].hw_update_data.fps = CAM_ISP_CTX_DEFAULT_FPS;
+#endif
 	}
 
 	/* camera context setup */
