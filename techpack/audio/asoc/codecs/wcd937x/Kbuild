@@ -54,9 +54,7 @@ COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
 
 ############ WCD937X ############
 
-ifneq (,$(filter $(TARGET_PRODUCT), phoenix phoenixin))
-	CDEFINES += -DCONFIG_SND_SOC_FOR_ULTRASOUND_PATH
-endif
+CDEFINES += -DCONFIG_SND_SOC_FOR_ULTRASOUND_PATH
 
 # for WCD937X Codec
 ifdef CONFIG_SND_SOC_WCD937X
