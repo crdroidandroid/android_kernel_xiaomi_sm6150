@@ -83,10 +83,6 @@
 	status = "ok";
 };
 
-&pm6150l_pwm_1 {
-	status = "okay";
-};
-
 &pm6150_qg {
 	qcom,battery-data = <&mtp_batterydata>;
 	qcom,qg-iterm-ma = <100>;
