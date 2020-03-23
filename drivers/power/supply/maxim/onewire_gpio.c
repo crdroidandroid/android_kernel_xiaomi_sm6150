@@ -382,11 +382,17 @@ static DEVICE_ATTR(ow_gpio, S_IRUGO | S_IWUSR | S_IWGRP,
 		onewire_gpio_ow_gpio_status_read,
 		onewire_gpio_ow_gpio_store);
 
+static bool onewire_inited;
 static int onewire_gpio_probe(struct platform_device *pdev)
 {
 	int retval = 0;
 	struct onewire_gpio_data *onewire_data;
 	struct kobject *p;
+
+	if (onewire_inited)
+		return 0;
+	else
+		onewire_inited = true;
 
 	ow_log("onewire probe entry");
 
