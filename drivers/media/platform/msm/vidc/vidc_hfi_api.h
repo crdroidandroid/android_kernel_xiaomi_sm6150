@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -155,6 +155,7 @@ enum hal_property {
 	HAL_CONFIG_VENC_IDR_PERIOD,
 	HAL_PARAM_VENC_ADAPTIVE_B,
 	HAL_PARAM_VPE_ROTATION,
+	HAL_CONFIG_VPE_FLIP,
 	HAL_PARAM_VENC_INTRA_REFRESH,
 	HAL_PARAM_VENC_MULTI_SLICE_CONTROL,
 	HAL_SYS_DEBUG_CONFIG,
@@ -663,8 +664,8 @@ struct hal_heic_grid_enable {
 
 enum hal_flip {
 	HAL_FLIP_NONE,
-	HAL_FLIP_HORIZONTAL,
 	HAL_FLIP_VERTICAL,
+	HAL_FLIP_HORIZONTAL,
 	HAL_FLIP_BOTH,
 	HAL_UNUSED_FLIP = 0x10000000,
 };

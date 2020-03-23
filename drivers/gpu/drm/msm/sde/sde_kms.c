@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -19,6 +19,7 @@
 #define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
 
 #include <drm/drm_crtc.h>
+#include <drm/drm_fixed.h>
 #include <linux/debugfs.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
@@ -1058,7 +1059,7 @@ static void sde_kms_commit(struct msm_kms *kms,
 	SDE_ATRACE_END("sde_kms_commit");
 }
 
-static void _sde_kms_release_splash_resource(struct sde_kms *sde_kms,
+void sde_kms_release_splash_resource(struct sde_kms *sde_kms,
 		struct drm_crtc *crtc)
 {
 	struct msm_drm_private *priv;
@@ -1141,9 +1142,7 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 	SDE_ATRACE_BEGIN("sde_kms_complete_commit");
 
 	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
-		SDE_ATRACE_BEGIN("sde_crtc_complete_commit");
 		sde_crtc_complete_commit(crtc, old_crtc_state);
-		SDE_ATRACE_END("sde_crtc_complete_commit");
 
 		/* complete secure transitions if any */
 		if (sde_kms->smmu_state.transition_type == POST_COMMIT)
@@ -1167,9 +1166,7 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 			SDE_EVT32(connector->base.id, c_conn->qsync_mode);
 		}
 
-		SDE_ATRACE_BEGIN("post_kickoff");
 		rc = c_conn->ops.post_kickoff(connector, &params);
-		SDE_ATRACE_END("post_kickoff");
 		if (rc) {
 			pr_err("Connector Post kickoff failed rc=%d\n",
 					 rc);
@@ -1179,7 +1176,7 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 	sde_power_resource_enable(&priv->phandle, sde_kms->core_client, false);
 
 	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i)
-		_sde_kms_release_splash_resource(sde_kms, crtc);
+		sde_kms_release_splash_resource(sde_kms, crtc);
 
 	SDE_EVT32_VERBOSE(SDE_EVTLOG_FUNC_EXIT);
 	SDE_ATRACE_END("sde_kms_complete_commit");
@@ -1420,6 +1417,7 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 		.get_panel_vfp = NULL,
 	};
 	static const struct sde_connector_ops dp_ops = {
+		.set_info_blob = dp_connnector_set_info_blob,
 		.post_init  = dp_connector_post_init,
 		.detect     = dp_connector_detect,
 		.get_modes  = dp_connector_get_modes,
@@ -1549,6 +1547,7 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 			sde_encoder_destroy(encoder);
 		}
 	}
+
 	/* dp */
 	for (i = 0; i < sde_kms->dp_display_count &&
 			priv->num_encoders < max_encoders; ++i) {
@@ -1595,6 +1594,7 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 
 		/* update display cap to MST_MODE for DP MST encoders */
 		info.capabilities |= MSM_DISPLAY_CAP_MST_MODE;
+		sde_kms->dp_stream_count = dp_display_get_num_of_streams();
 		for (idx = 0; idx < sde_kms->dp_stream_count; idx++) {
 			info.h_tile_instance[0] = idx;
 			encoder = sde_encoder_init(dev, &info);
@@ -1688,7 +1688,12 @@ static int _sde_kms_drm_obj_init(struct sde_kms *sde_kms)
 	if (!_sde_kms_get_displays(sde_kms))
 		(void)_sde_kms_setup_displays(dev, priv, sde_kms);
 
-	max_crtc_count = min(catalog->mixer_count, priv->num_encoders);
+	/* Follow user setting if preferred crtc number is set */
+	if (!of_property_read_u32(dev->dev->of_node,
+			"qcom,sde-crtc-num-pref", &max_crtc_count))
+		max_crtc_count = min(max_crtc_count, MAX_CRTCS);
+	else
+		max_crtc_count = min(catalog->mixer_count, priv->num_encoders);
 
 	/* Create the planes */
 	for (i = 0; i < catalog->sspp_count; i++) {
@@ -2653,6 +2658,60 @@ static bool sde_kms_check_for_splash(struct msm_kms *kms)
 	return sde_kms->splash_data.num_splash_displays;
 }
 
+static int sde_kms_get_mixer_count(const struct msm_kms *kms,
+		const struct drm_display_mode *mode,
+		u32 max_mixer_width, u32 *num_lm)
+{
+	struct sde_kms *sde_kms;
+	s64 mode_clock_hz = 0;
+	s64 max_mdp_clock_hz = 0;
+	s64 mdp_fudge_factor = 0;
+	s64 temp = 0;
+	s64 htotal_fp = 0;
+	s64 vtotal_fp = 0;
+	s64 vrefresh_fp = 0;
+
+	if (!num_lm) {
+		SDE_ERROR("invalid num_lm pointer\n");
+		return -EINVAL;
+	}
+	*num_lm = 1;
+
+	if (!kms || !mode || !max_mixer_width) {
+		SDE_ERROR("invlaid input args");
+		return -EINVAL;
+	}
+
+	sde_kms = to_sde_kms(kms);
+
+	max_mdp_clock_hz = drm_fixp_from_fraction(
+			sde_kms->perf.max_core_clk_rate, 1);
+	mdp_fudge_factor = drm_fixp_from_fraction(105, 100);
+	htotal_fp = drm_fixp_from_fraction(mode->htotal, 1);
+	vtotal_fp =  drm_fixp_from_fraction(mode->vtotal, 1);
+	vrefresh_fp =  drm_fixp_from_fraction(mode->vrefresh, 1);
+
+	temp = drm_fixp_mul(htotal_fp, vtotal_fp);
+	temp = drm_fixp_mul(temp, vrefresh_fp);
+	mode_clock_hz = drm_fixp_mul(temp, mdp_fudge_factor);
+
+	if (mode_clock_hz > max_mdp_clock_hz ||
+			mode->hdisplay > max_mixer_width) {
+		*num_lm = 2;
+		if ((mode_clock_hz >> 1) > max_mdp_clock_hz) {
+			SDE_DEBUG("[%s] clock %d exceeds max_mdp_clk %d\n",
+					mode->name, mode_clock_hz,
+					max_mdp_clock_hz);
+			return -EINVAL;
+		}
+	}
+
+	SDE_DEBUG("[%s] h=%d, v=%d, fps%d, max_mdp_pclk_hz=%llu, num_lm=%d\n",
+			mode->name, mode->htotal, mode->vtotal, mode->vrefresh,
+			sde_kms->perf.max_core_clk_rate, *num_lm);
+	return 0;
+}
+
 static void _sde_kms_null_commit(struct drm_device *dev,
 		struct drm_encoder *enc)
 {
@@ -2961,6 +3020,7 @@ static const struct msm_kms_funcs kms_funcs = {
 	.get_address_space = _sde_kms_get_address_space,
 	.postopen = _sde_kms_post_open,
 	.check_for_splash = sde_kms_check_for_splash,
+	.get_mixer_count = sde_kms_get_mixer_count,
 };
 
 /* the caller api needs to turn on clock before calling it */
