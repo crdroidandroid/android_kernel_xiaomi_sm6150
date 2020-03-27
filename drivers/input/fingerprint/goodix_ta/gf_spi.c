@@ -342,7 +342,7 @@ static void gf_kernel_key_input(struct gf_dev *gf_dev, struct gf_key *gf_key)
 	uint32_t key_input = 0;
 
 	if (GF_KEY_HOME == gf_key->key) {
-		key_input = GF_KEY_INPUT_HOME;
+		return;
 	} else if (GF_KEY_POWER == gf_key->key) {
 		key_input = GF_KEY_INPUT_POWER;
 	} else if (GF_KEY_CAMERA == gf_key->key) {
