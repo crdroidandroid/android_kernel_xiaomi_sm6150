@@ -1,0 +1,8 @@
+#include "touchscreen/sm6150-novatek-i2c_f7b.dtsi"
+#include "touchscreen/sm6150-ft8719-i2c_f7b.dtsi"
+
+&qupv3_se1_i2c {
+	himax_ts@48 {
+		status = "disabled";
+	};
+};
