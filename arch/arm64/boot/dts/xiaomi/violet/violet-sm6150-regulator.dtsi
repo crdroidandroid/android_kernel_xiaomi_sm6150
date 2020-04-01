@@ -1,0 +1,6 @@
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+&L7C {
+	qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+	regulator-always-on;
+};

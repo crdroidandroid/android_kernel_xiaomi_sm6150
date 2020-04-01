@@ -1,0 +1,7 @@
+&blue_led {
+    status = "disabled";
+};
+
+&green_led {
+    status = "disabled";
+};
