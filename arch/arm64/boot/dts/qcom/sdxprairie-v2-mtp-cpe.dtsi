@@ -1,4 +1,4 @@
-/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -10,23 +10,20 @@
  * GNU General Public License for more details.
  */
 
-/dts-v1/;
+#include "sdxprairie-v2.dtsi"
+#include "sdxprairie-mtp.dtsi"
 
-#include "sdmmagpiep.dtsi"
-
-/ {
-	model = "Qualcomm Technologies, Inc. SDMMAGPIEP SoC";
-	compatible = "qcom,sdmmagpiep";
-	qcom,pmic-name = "PM6150";
-	qcom,board-id = <0 0>;
+&qnand_1 {
+	status = "ok";
 };
 
-&soc {
-	qcom,rmnet-ipa {
-		status = "disabled";
-	};
+&emac_hw {
+	/delete-property/ vreg_rgmii-supply;
+	pinctrl-names = "default";
+	pinctrl-0 = <&vreg_rgmii_off_default>;
 };
 
-&ipa_hw {
-	status = "disabled";
+&vreg_rgmii_io_pads {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
 };
