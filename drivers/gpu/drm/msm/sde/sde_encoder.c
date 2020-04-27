@@ -4906,8 +4906,6 @@ static int _sde_encoder_status_show(struct seq_file *s, void *data)
 {
 	struct sde_encoder_virt *sde_enc;
 	int i;
-	struct sde_hw_ctl *ctl;
-	int rc = 0;
 
 	if (!s || !s->private)
 		return -EINVAL;
