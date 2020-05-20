@@ -67,7 +67,9 @@ static int download_mode = 1;
 static bool force_warm_reboot;
 
 static int in_panic;
+#ifdef CONFIG_QCOM_DLOAD_MODE
 static struct kobject dload_kobj;
+#endif
 
 static int panic_prep_restart(struct notifier_block *this,
 			      unsigned long event, void *ptr)
