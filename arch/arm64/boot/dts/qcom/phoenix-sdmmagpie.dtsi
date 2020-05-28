@@ -634,6 +634,11 @@
 		    0x22 0x210>; /* PWR_CTRL1 */
 };
 
+&mdss_dsi_phy0 {
+        qcom,panel-allow-phy-poweroff;
+        qcom,ulps-enabled;
+};
+
 /* Enlarge TZ memory size to 62M */
 &removed_region {
        reg = <0 0x86200000 0 0x4900000>;
