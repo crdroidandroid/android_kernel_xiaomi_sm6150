@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.14.181 Kernel Configuration
+# Linux/arm64 4.14.182 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -719,7 +719,7 @@ CONFIG_ARM_CPUIDLE=y
 #
 CONFIG_CPU_FREQ=y
 CONFIG_CPU_FREQ_GOV_ATTR_SET=y
-# CONFIG_CPU_FREQ_STAT is not set
+CONFIG_CPU_FREQ_STAT=y
 CONFIG_CPU_FREQ_TIMES=y
 CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y
 # CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE is not set
@@ -1255,6 +1255,7 @@ CONFIG_BT_DEBUGFS=y
 # Bluetooth device drivers
 #
 # CONFIG_BT_HCIBTUSB is not set
+# CONFIG_BT_HCIBTSDIO is not set
 # CONFIG_BT_HCIUART is not set
 # CONFIG_BT_HCIBCM203X is not set
 # CONFIG_BT_HCIBFUSB is not set
@@ -2034,6 +2035,7 @@ CONFIG_CLD_LL_CORE=y
 # CONFIG_CNSS is not set
 # CONFIG_CLD_DEBUG is not set
 # CONFIG_CLD_USB_CORE is not set
+# CONFIG_CLD_HL_SDIO_CORE is not set
 # CONFIG_CNSS_LOGGER is not set
 # CONFIG_WLAN_FEATURE_RX_WAKELOCK is not set
 CONFIG_CNSS_UTILS=y
@@ -3189,6 +3191,7 @@ CONFIG_DVB_MPQ_SW=y
 #
 # Supported MMC/SDIO adapters
 #
+# CONFIG_SMS_SDIO_DRV is not set
 # CONFIG_CYPRESS_FIRMWARE is not set
 
 #
@@ -4412,6 +4415,7 @@ CONFIG_STAGING=y
 # CONFIG_COMEDI is not set
 # CONFIG_RTL8192U is not set
 # CONFIG_RTLLIB is not set
+# CONFIG_RTL8723BS is not set
 # CONFIG_R8712U is not set
 # CONFIG_R8188EU is not set
 # CONFIG_RTS5208 is not set
@@ -4518,8 +4522,10 @@ CONFIG_ION_DEFER_FREE_NO_SCHED_IDLE=y
 # CONFIG_GS_FPGABOOT is not set
 # CONFIG_COMMON_CLK_XLNX_CLKWZRD is not set
 # CONFIG_FB_TFT is not set
+# CONFIG_WILC1000_SDIO is not set
 # CONFIG_WILC1000_SPI is not set
 # CONFIG_MOST is not set
+# CONFIG_KS7010 is not set
 # CONFIG_GREYBUS is not set
 # CONFIG_CRYPTO_DEV_CCREE is not set
 
