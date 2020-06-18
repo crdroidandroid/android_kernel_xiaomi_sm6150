@@ -29,6 +29,7 @@
 #include "dsi-panel-ss-fhd-ea-f10-cmd.dtsi"
 #include "dsi-panel-ss-fhd-eb-f10-cmd.dtsi"
 #include "dsi-panel-g7b-37-02-0a-dsc-video.dtsi"
+#include "dsi-panel-g7b-37-02-0b-dsc-video.dtsi"
 #include "dsi-panel-g7b-42-02-0b-dsc-video.dtsi"
 #include "dsi-panel-sharp-qsync-wqhd-cmd.dtsi"
 #include "dsi-panel-sharp-qsync-wqhd-video.dtsi"
@@ -396,6 +397,19 @@
 		qcom,dsi-panel = <&dsi_sharp_qsync_fhd_cmd>;
 	};
 
+	dsi_g7b_37_02_0b_video_display: qcom,dsi-display@26 {
+
+		label = "dsi_g7b_37_02_0b_video_display";
+		qcom,display-type = "primary";
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&dsi_g7b_37_02_0b_video>;
+	};
+
+
 	sde_dsi: qcom,dsi-display {
 		compatible = "qcom,dsi-display";
 
@@ -453,7 +467,8 @@
 			&dsi_sharp_qsync_wqhd_cmd_display
 			&dsi_sharp_qsync_wqhd_video_display
 			&dsi_sharp_qsync_fhd_video_display
-			&dsi_sharp_qsync_fhd_cmd_display>;
+			&dsi_sharp_qsync_fhd_cmd_display
+			&dsi_g7b_37_02_0b_video_display>;
 
 	};
 
@@ -972,6 +987,19 @@
 };
 
 &dsi_g7b_37_02_0a_video {
+	qcom,mdss-dsi-t-clk-post = <0x0E>;
+	qcom,mdss-dsi-t-clk-pre = <0x34>;
+	qcom,mdss-dsi-display-timings {
+		timing@0{
+			qcom,mdss-dsi-panel-phy-timings = [00 1C 07 07 23 21 07
+				07 05 02 04 00];
+			qcom,display-topology = <1 1 1>;
+			qcom,default-topology-index = <0>;
+		};
+	};
+};
+
+&dsi_g7b_37_02_0b_video {
 	qcom,mdss-dsi-t-clk-post = <0x0E>;
 	qcom,mdss-dsi-t-clk-pre = <0x34>;
 	qcom,mdss-dsi-display-timings {
