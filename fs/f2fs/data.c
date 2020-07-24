@@ -1018,7 +1018,7 @@ static struct bio *f2fs_grab_read_bio(struct inode *inode, block_t blkaddr,
 	f2fs_target_device(sbi, blkaddr, bio);
 	bio->bi_end_io = f2fs_read_end_io;
 	bio_set_op_attrs(bio, REQ_OP_READ,
-			 (f2fs_encrypted_inode(inode) ?
+			 (IS_ENCRYPTED(inode) ?
 			  REQ_NOENCRYPT :
 			  op_flag));
 
