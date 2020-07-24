@@ -775,7 +775,7 @@ no_delete:
 		f2fs_bug_on(sbi, is_inode_flag_set(inode, FI_DIRTY_INODE));
 	else
 		f2fs_inode_synced(inode);
-		f2fs_msg(sbi->sb, KERN_WARNING,
+		f2fs_warn(sbi,
 			 "inconsistent dirty inode:%u entry found during eviction\n",
 			 inode->i_ino);
 		if (!is_set_ckpt_flags(sbi, CP_ERROR_FLAG) &&
