@@ -86,6 +86,7 @@
 #define ARM_CPU_PART_CORTEX_A73		0xD09
 #define ARM_CPU_PART_CORTEX_A75		0xD0A
 #define ARM_CPU_PART_CORTEX_A76		0xD0B
+#define ARM_CPU_PART_CORTEX_A35		0xD04
 #define ARM_CPU_PART_KRYO3S		0x803
 #define ARM_CPU_PART_KRYO4S		0x803
 #define ARM_CPU_PART_KRYO4G		0x804
@@ -115,6 +116,7 @@
 #define MIDR_CORTEX_A73 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A73)
 #define MIDR_CORTEX_A75 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A75)
 #define MIDR_CORTEX_A76 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A76)
+#define MIDR_CORTEX_A35 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A35)
 #define MIDR_KRYO3S	MIDR_CPU_MODEL(ARM_CPU_IMP_QCOM, ARM_CPU_PART_KRYO3S)
 #define MIDR_KRYO4S	MIDR_CPU_MODEL(ARM_CPU_IMP_QCOM, ARM_CPU_PART_KRYO4S)
 #define MIDR_KRYO4G	MIDR_CPU_MODEL(ARM_CPU_IMP_QCOM, ARM_CPU_PART_KRYO4G)
@@ -154,14 +156,14 @@ struct midr_range {
 	u32 rv_max;
 };
 
-#define GENERIC_MIDR_RANGE(m, v_min, r_min, v_max, r_max)	\
+#define MIDR_RANGE(m, v_min, r_min, v_max, r_max)		\
 	{							\
 		.model = m,					\
 		.rv_min = MIDR_CPU_VAR_REV(v_min, r_min),	\
 		.rv_max = MIDR_CPU_VAR_REV(v_max, r_max),	\
 	}
 
-#define GENERIC_MIDR_ALL_VERSIONS(m) GENERIC_MIDR_RANGE(m, 0, 0, 0xf, 0xf)
+#define MIDR_ALL_VERSIONS(m) MIDR_RANGE(m, 0, 0, 0xf, 0xf)
 
 static inline bool is_midr_in_range(u32 midr, struct midr_range const *range)
 {
