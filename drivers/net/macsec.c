@@ -3078,9 +3078,6 @@ static int macsec_dev_open(struct net_device *dev)
 	struct macsec_context ctx;
 	int err;
 
-	if (!(real_dev->flags & IFF_UP))
-		return -ENETDOWN;
-
 	err = dev_uc_add(real_dev, dev->dev_addr);
 	if (err < 0)
 		return err;
