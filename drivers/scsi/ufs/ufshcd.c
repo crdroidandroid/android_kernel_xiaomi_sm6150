@@ -3840,7 +3840,7 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 
 	err = ufshcd_map_sg(hba, lrbp);
 	if (err) {
-		ufshcd_release(hba);
+		ufshcd_release(hba, false);
 		lrbp->cmd = NULL;
 		clear_bit_unlock(tag, &hba->lrb_in_use);
 		ufshcd_release_all(hba);
@@ -5319,9 +5319,6 @@ static int __ufshcd_uic_hibern8_enter(struct ufs_hba *hba)
 
 		hba->full_init_linereset = false;
 		ufshcd_update_error_stats(hba, UFS_ERR_HIBERN8_ENTER);
-
-	if (ret) {
-		int err;
 
 		dev_err(hba->dev, "%s: hibern8 enter failed. ret = %d\n",
 			__func__, ret);
@@ -7975,6 +7972,7 @@ static int ufshcd_detect_device(struct ufs_hba *hba)
 static int ufshcd_reset_and_restore(struct ufs_hba *hba)
 {
 	int err = 0;
+	unsigned long flags;
 	int retries = MAX_HOST_RESET_RETRIES;
 
 	ufshcd_enable_irq(hba);

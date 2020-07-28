@@ -829,6 +829,7 @@ void __noreturn do_exit(long code)
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule();
 	}
+#endif
 
 	exit_signals(tsk);  /* sets PF_EXITING */
 	sched_exit(tsk);

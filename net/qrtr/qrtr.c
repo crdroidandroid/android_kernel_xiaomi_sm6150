@@ -370,7 +370,6 @@ static void __qrtr_node_release(struct kref *kref)
 	kthread_flush_worker(&node->kworker);
 	kthread_stop(node->task);
 
-	cancel_work_sync(&node->work);
 	skb_queue_purge(&node->rx_queue);
 	kfree(node);
 }
@@ -1478,7 +1477,7 @@ static int qrtr_bcast_enqueue(struct qrtr_node *node, struct sk_buff *skb,
 	}
 	up_read(&qrtr_node_lock);
 
-	qrtr_local_enqueue(NULL, skb);
+	qrtr_local_enqueue(NULL, skb, type, from, to, flags);
 
 	return 0;
 }

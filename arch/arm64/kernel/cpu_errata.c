@@ -585,7 +585,7 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 	/* Kryo2xx Silver rAp4 */
 		.desc = "Kryo2xx Silver erratum 845719",
 		.capability = ARM64_WORKAROUND_845719,
-		MIDR_RANGE(MIDR_KRYO2XX_SILVER, 0xA00004, 0xA00004),
+		ERRATA_MIDR_REV_RANGE(MIDR_KRYO2XX_SILVER, 0, 0xA00004, 0xA00004),
 	},
 #endif
 #ifdef CONFIG_CAVIUM_ERRATUM_23154
@@ -696,7 +696,7 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 	/* KRYO2XX all versions */
 		.desc = "ARM erratum 858921",
 		.capability = ARM64_WORKAROUND_858921,
-		MIDR_ALL_VERSIONS(MIDR_KRYO2XX_GOLD),
+		ERRATA_MIDR_ALL_VERSIONS(MIDR_KRYO2XX_GOLD),
 	},
 #endif
 	{

@@ -156,7 +156,6 @@ int config_ep_by_speed_and_alt(struct usb_gadget *g,
 {
 	struct usb_composite_dev *cdev;
 	struct usb_endpoint_descriptor *chosen_desc = NULL;
-	struct usb_interface_descriptor *int_desc = NULL;
 	struct usb_descriptor_header **speed_desc = NULL;
 
 	struct usb_ss_ep_comp_descriptor *comp_desc = NULL;

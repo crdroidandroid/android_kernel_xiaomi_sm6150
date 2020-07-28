@@ -1828,7 +1828,7 @@ static int insert_pfn(struct vm_area_struct *vma, unsigned long addr,
 				goto out_unlock;
 			}
 			entry = pte_mkyoung(*pte);
-			entry = maybe_mkwrite(pte_mkdirty(entry), vma);
+			entry = maybe_mkwrite(pte_mkdirty(entry), vma->vm_flags);
 			if (ptep_set_access_flags(vma, addr, pte, entry, 1))
 				update_mmu_cache(vma, addr, pte);
 		}
@@ -2536,10 +2536,6 @@ static int do_page_mkwrite(struct vm_fault *vmf)
 	unsigned int old_flags = vmf->flags;
 
 	vmf->flags = FAULT_FLAG_WRITE|FAULT_FLAG_MKWRITE;
-
-	if (vmf->vma->vm_file &&
-	    IS_SWAPFILE(vmf->vma->vm_file->f_mapping->host))
-		return VM_FAULT_SIGBUS;
 
 	ret = vmf->vma->vm_ops->page_mkwrite(vmf);
 	/* Restore original flags so that caller is not surprised */
