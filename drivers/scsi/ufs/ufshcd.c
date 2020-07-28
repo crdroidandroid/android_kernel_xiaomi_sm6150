@@ -4409,10 +4409,10 @@ static int __ufshcd_query_descriptor(struct ufs_hba *hba,
 		goto out_unlock;
 	}
 
-	hba->dev_cmd.query.descriptor = NULL;
 	*buf_len = be16_to_cpu(response->upiu_res.length);
 
 out_unlock:
+	hba->dev_cmd.query.descriptor = NULL;
 	mutex_unlock(&hba->dev_cmd.lock);
 out:
 	ufshcd_release_all(hba);
@@ -5312,17 +5312,21 @@ static int __ufshcd_uic_hibern8_enter(struct ufs_hba *hba)
 	 * Hibern8 operation. After LINERESET, link moves to default PWM-G1
 	 * mode hence full reinit is required to move link to HS speeds.
 	 */
-	if (ret || hba->full_init_linereset) {
+	if (hba->full_init_linereset) {
 		int err;
 
 		hba->full_init_linereset = false;
 		ufshcd_update_error_stats(hba, UFS_ERR_HIBERN8_ENTER);
+
+	if (ret) {
+		int err;
+
 		dev_err(hba->dev, "%s: hibern8 enter failed. ret = %d\n",
 			__func__, ret);
 
 		/*
-		 * If link recovery fails then return error code (-ENOLINK)
-		 * returned ufshcd_link_recovery().
+		 * If link recovery fails then return error code returned from
+		 * ufshcd_link_recovery().
 		 * If link recovery succeeds then return -EAGAIN to attempt
 		 * hibern8 enter retry again.
 		 */
