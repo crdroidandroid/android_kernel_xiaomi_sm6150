@@ -1183,8 +1183,8 @@ static const struct sectioncheck *section_mismatch(
  *   whitelisting, which relies on pattern-matching against symbol
  *   names to work.  (One situation where gcc can autogenerate ELF
  *   local symbols is when "-fsection-anchors" is used.)
- * 
- * Pattern 7
+ *
+ * Pattern 7:
  *   With CONFIG_CFI_CLANG, clang appends .cfi to all indirectly called
  *   functions and creates a function stub with the original name. This
  *   stub is always placed in .text, even if the actual function with the
