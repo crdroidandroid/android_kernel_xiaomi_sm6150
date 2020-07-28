@@ -1131,16 +1131,16 @@ static int ip_setup_cork(struct sock *sk, struct inet_cork *cork,
 	rt = *rtp;
 	if (unlikely(!rt))
 		return -EFAULT;
-	/*
-	 * We steal reference to this route, caller should not release it
-	 */
-	*rtp = NULL;
+
 	cork->fragsize = ip_sk_use_pmtu(sk) ?
 			 dst_mtu(&rt->dst) : rt->dst.dev->mtu;
 
 	cork->gso_size = sk->sk_type == SOCK_DGRAM &&
 			 sk->sk_protocol == IPPROTO_UDP ? ipc->gso_size : 0;
 	cork->dst = &rt->dst;
+	/* We stole this route, caller should not release it. */
+	*rtp = NULL;
+
 	cork->length = 0;
 	cork->ttl = ipc->ttl;
 	cork->tos = ipc->tos;
