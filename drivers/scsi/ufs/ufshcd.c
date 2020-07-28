@@ -6322,7 +6322,7 @@ ufshcd_transfer_rsp_status(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 	if ((host_byte(result) != DID_OK) && !hba->silence_err_logs) {
 		print_prdt = (ocs == OCS_INVALID_PRDT_ATTR ||
 			ocs == OCS_MISMATCH_DATA_BUF_SIZE);
-		ufshcd_print_trs(hba, 1 << lrbp->task_tag, print_prdt);
+		ufshcd_print_trs(hba, 1 << lrbp->task_tag, true);
 	}
 
 	if ((host_byte(result) == DID_ERROR) ||
@@ -7973,7 +7973,6 @@ static int ufshcd_detect_device(struct ufs_hba *hba)
 static int ufshcd_reset_and_restore(struct ufs_hba *hba)
 {
 	int err = 0;
-	unsigned long flags;
 	int retries = MAX_HOST_RESET_RETRIES;
 
 	ufshcd_enable_irq(hba);
