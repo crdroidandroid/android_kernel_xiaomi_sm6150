@@ -802,7 +802,7 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 
 	mrq.cmd = &cmd;
 
-	err = mmc_blk_part_switch(card, target_part);
+	err = mmc_blk_part_switch(card, md->part_type);
 	if (err)
 		return err;
 
