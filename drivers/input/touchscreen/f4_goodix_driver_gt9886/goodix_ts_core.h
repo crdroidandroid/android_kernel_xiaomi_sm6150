@@ -99,9 +99,6 @@
 #define GSX_REG_GESTURE				0x6F68
 #define GSX_GESTURE_CMD				0x08
 
-
-#define CONFIG_TOUCHSCREEN_GOODIX_DEBUG_FS
-
 /*
  * struct goodix_module - external modules container
  * @head: external modules list
@@ -740,14 +737,13 @@ static inline u32 checksum_be32(u8 *data, u32 size)
 #define ECHKSUM					1002
 #define EMEMCMP					1003
 
-#define CONFIG_GOODIX_DEBUG
 /* log macro */
-#define ts_log(fmt, arg...)	pr_debug("[GTP9886-INF][%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
-#define ts_info(fmt, arg...)	pr_info("[GTP9886-INF][%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
-#define	ts_err(fmt, arg...)		pr_err("[GTP9886-ERR][%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
+#define ts_log(fmt, arg...)		((void)0)
+#define ts_info(fmt, arg...)	((void)0)
+#define	ts_err(fmt, arg...)		((void)0)
 #define boot_log(fmt, arg...)	g_info(fmt, ##arg)
 #ifdef CONFIG_GOODIX_DEBUG
-#define ts_debug(fmt, arg...)	pr_info("[GTP9886-DBG][%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
+#define ts_debug(fmt, arg...)	((void)0)
 #else
 #define ts_debug(fmt, arg...)	do {} while (0)
 #endif
