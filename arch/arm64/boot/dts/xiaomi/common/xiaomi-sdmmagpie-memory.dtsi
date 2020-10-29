@@ -68,6 +68,14 @@
     reg = <0x0 0x9e000000 0x0 0x0100000>;
 };
 
+&dump_mem {
+    status = "disabled";
+};
+
+&mem_dump {
+    status = "disabled";
+};
+
 &reserved_memory {
     ramoops {
         compatible = "ramoops";
