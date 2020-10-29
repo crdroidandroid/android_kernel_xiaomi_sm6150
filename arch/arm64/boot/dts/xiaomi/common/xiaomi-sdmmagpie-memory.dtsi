@@ -61,7 +61,7 @@
 };
 
 &disp_rdump_memory {
-    reg = <0x0 0x9d000000 0x0 0x01000000>;
+    status = "disabled";
 };
 
 &dfps_data_memory {
