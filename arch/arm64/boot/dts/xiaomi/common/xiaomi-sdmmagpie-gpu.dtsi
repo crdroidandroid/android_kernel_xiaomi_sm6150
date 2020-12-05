@@ -4,5 +4,5 @@
  */
  
 &msm_gpu {
-    qcom,idle-timeout = <64>;
+    qcom,idle-timeout = <58>; /* msecs */
 };
