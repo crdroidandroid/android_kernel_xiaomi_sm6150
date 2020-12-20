@@ -740,12 +740,11 @@ static u32 dsi_panel_get_backlight(struct dsi_panel *panel)
 {
 	u32 bl_level;
 
-	if (panel->doze_enabled && panel->doze_mode == DSI_DOZE_HBM)
-		bl_level = panel->bl_config.bl_doze_hbm;
-	else if (panel->doze_enabled && panel->doze_mode == DSI_DOZE_LPM)
-		bl_level = panel->bl_config.bl_doze_lpm;
-	else if (!panel->doze_enabled)
+	if (panel->doze_enabled) {
+		bl_level = panel->doze_mode ? panel->bl_config.bl_doze_hbm : panel->bl_config.bl_doze_lpm;
+	} else {
 		bl_level = panel->bl_config.bl_level;
+	}
 
 	return bl_level;
 }
@@ -781,23 +780,14 @@ u32 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel)
 int dsi_panel_update_doze(struct dsi_panel *panel) {
 	int rc = 0;
 
-	if (panel->doze_enabled && panel->doze_mode == DSI_DOZE_HBM) {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_HBM);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_DOZE_HBM cmd, rc=%d\n",
-					panel->name, rc);
-	} else if (panel->doze_enabled && panel->doze_mode == DSI_DOZE_LPM) {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DOZE_LBM);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_DOZE_LBM cmd, rc=%d\n",
-					panel->name, rc);
-	} else if (!panel->doze_enabled) {
+	if (panel->doze_enabled) {
+		rc = dsi_panel_tx_cmd_set(panel, panel->doze_mode ? DSI_CMD_SET_DOZE_HBM : DSI_CMD_SET_DOZE_LBM);
+	} else {
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
-					panel->name, rc);
 	}
 
+	if (rc)
+		pr_err("[%s] failed to send DOZE, rc=%d\n", panel->name, rc);
 	return rc;
 }
 
@@ -826,20 +816,14 @@ int dsi_panel_set_fod_hbm(struct dsi_panel *panel, bool status)
 {
 	int rc = 0;
 
-	if (status) {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_HBM_FOD_ON);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_DISP_HBM_FOD_ON cmd, rc=%d\n",
-					panel->name, rc);
-	} else if (panel->doze_enabled) {
-		dsi_panel_update_doze(panel);
-	} else {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_HBM_FOD_OFF);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_DISP_HBM_FOD_OFF cmd, rc=%d\n",
-					panel->name, rc);
-	}
+	if (panel->doze_enabled)
+		rc = dsi_panel_update_doze(panel);
 
+	rc = dsi_panel_tx_cmd_set(panel, status ? DSI_CMD_SET_DISP_HBM_FOD_ON : DSI_CMD_SET_DISP_HBM_FOD_OFF);
+
+	if (rc)
+		pr_err("[%s] failed to send FOD HBM cmd, rc=%d\n",
+				panel->name, rc);
 	return rc;
 }
 
