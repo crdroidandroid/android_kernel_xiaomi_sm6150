@@ -1672,11 +1672,6 @@ int smblib_get_irq_status(struct smb_charger *chg,
 	int rc;
 	u8 reg;
 
-	if (chg->wa_flags & SKIP_MISC_PBS_IRQ_WA) {
-		val->intval = 0;
-		return 0;
-	}
-
 	mutex_lock(&chg->irq_status_lock);
 	/* Report and clear cached status */
 	val->intval = chg->irq_status;
@@ -2179,22 +2174,9 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 				union power_supply_propval *val)
 {
 	union power_supply_propval pval = {0, };
-	union power_supply_propval batt_capa ={0,};
 	bool usb_online;
 	u8 stat;
 	int rc, suspend = 0;
-
-	if (chg->fake_chg_status_on_debug_batt) {
-		rc = smblib_get_prop_from_bms(chg,
-				POWER_SUPPLY_PROP_DEBUG_BATTERY, &pval);
-		if (rc < 0) {
-			pr_err_ratelimited("Couldn't get debug battery prop rc=%d\n",
-					rc);
-		} else if (pval.intval == 1) {
-			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
-			return 0;
-		}
-	}
 
 	if (chg->use_bq_pump && (get_client_vote_locked(chg->usb_icl_votable,
 					MAIN_CHG_VOTER) == MAIN_CHARGER_STOP_ICL)) {
@@ -2235,11 +2217,6 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 	}
 	usb_online = (bool)pval.intval;
 
-	rc = smblib_get_prop_from_bms(chg,
-			POWER_SUPPLY_PROP_CAPACITY, &batt_capa);
-	if (rc < 0)
-		smblib_err(chg, "Couldn't read SOC value, rc=%d\n", rc);
-
 	rc = smblib_read(chg, BATTERY_CHARGER_STATUS_1_REG, &stat);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't read BATTERY_CHARGER_STATUS_1 rc=%d\n",
@@ -2275,14 +2252,11 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 		break;
 	case TERMINATE_CHARGE:
 	case INHIBIT_CHARGE:
-		if (((batt_capa.intval <= 99) && usb_online) || POWER_SUPPLY_HEALTH_WARM == pval.intval
+		if (POWER_SUPPLY_HEALTH_WARM == pval.intval
 			|| POWER_SUPPLY_HEALTH_OVERHEAT == pval.intval)
 			val->intval = POWER_SUPPLY_STATUS_CHARGING;
 		else
 			val->intval = POWER_SUPPLY_STATUS_FULL;
-
-		smblib_dbg(chg, PR_OEM, "stat=%d capacity=%d usb_online=%d BATTERY_PROP_STATUS=%d\n",
-				stat, batt_capa.intval, usb_online, val->intval);
 		break;
 	case DISABLE_CHARGE:
 	case PAUSE_CHARGE:
@@ -3986,7 +3960,7 @@ int smblib_set_prop_dc_reset(struct smb_charger *chg)
 
 	rc = smblib_write(chg, DCIN_CMD_PON_REG, DCIN_PON_BIT | MID_CHG_BIT);
 	if (rc < 0) {
-		smblib_err(chg, "Couldn't write %lu to DCIN_CMD_PON_REG rc=%d\n",
+		smblib_err(chg, "Couldn't write %d to DCIN_CMD_PON_REG rc=%d\n",
 			DCIN_PON_BIT | MID_CHG_BIT, rc);
 		return rc;
 	}
@@ -4223,36 +4197,12 @@ int smblib_get_prop_usb_voltage_now(struct smb_charger *chg,
 				    union power_supply_propval *val)
 {
 	union power_supply_propval pval = {0, };
-	int rc, ret = 0;
-	u8 reg;
-
-	mutex_lock(&chg->adc_lock);
-
-	if (chg->wa_flags & USBIN_ADC_WA) {
-		/* Store ADC channel config in order to restore later */
-		rc = smblib_read(chg, BATIF_ADC_CHANNEL_EN_REG, &reg);
-		if (rc < 0) {
-			smblib_err(chg, "Couldn't read ADC config rc=%d\n", rc);
-			ret = rc;
-			goto unlock;
-		}
-
-		/* Disable all ADC channels except IBAT channel */
-		rc = smblib_write(chg, BATIF_ADC_CHANNEL_EN_REG,
-						IBATT_CHANNEL_EN_BIT);
-		if (rc < 0) {
-			smblib_err(chg, "Couldn't disable ADC channels rc=%d\n",
-						rc);
-			ret = rc;
-			goto unlock;
-		}
-	}
+	int rc;
 
 	rc = smblib_get_prop_usb_present(chg, &pval);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't get usb presence status rc=%d\n", rc);
-		ret = -ENODATA;
-		goto restore_adc_config;
+		return -ENODATA;
 	}
 
 	/*
@@ -4261,26 +4211,9 @@ int smblib_get_prop_usb_voltage_now(struct smb_charger *chg,
 	 * voltages.
 	 */
 	if (chg->chg_param.smb_version == PM8150B_SUBTYPE && pval.intval)
-		rc = smblib_read_mid_voltage_chan(chg, val);
+		return smblib_read_mid_voltage_chan(chg, val);
 	else
-		rc = smblib_read_usbin_voltage_chan(chg, val);
-	if (rc < 0) {
-		smblib_err(chg, "Failed to read USBIN over vadc, rc=%d\n", rc);
-		ret = rc;
-	}
-
-restore_adc_config:
-	 /* Restore ADC channel config */
-	if (chg->wa_flags & USBIN_ADC_WA)
-		rc = smblib_write(chg, BATIF_ADC_CHANNEL_EN_REG, reg);
-		if (rc < 0)
-			smblib_err(chg, "Couldn't write ADC config rc=%d\n",
-						rc);
-
-unlock:
-	mutex_unlock(&chg->adc_lock);
-
-	return ret;
+		return smblib_read_usbin_voltage_chan(chg, val);
 }
 
 int smblib_get_prop_vph_voltage_now(struct smb_charger *chg,
@@ -6586,10 +6519,6 @@ static void smblib_raise_qc3_vbus_work(struct work_struct *work)
 	int rc;
 	struct smb_charger *chg = container_of(work, struct smb_charger,
 						raise_qc3_vbus_work.work);
-
-	if (chg->sec_chg_selected == POWER_SUPPLY_CHARGER_SEC_NONE) {
-		return;
-	}
 
 	rc = smblib_get_prop_usb_present(chg, &val);
 	if (rc < 0) {
