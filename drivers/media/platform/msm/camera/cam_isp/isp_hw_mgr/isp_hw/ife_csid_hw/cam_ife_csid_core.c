@@ -49,7 +49,7 @@
 #define CAM_CSID_IRQ_SOF_DEBUG_CNT_MAX 12
 
 /* Max CSI Rx irq error count threshold value */
-#define CAM_IFE_CSID_MAX_IRQ_ERROR_COUNT               5
+#define CAM_IFE_CSID_MAX_IRQ_ERROR_COUNT               100
 
 static int cam_ife_csid_is_ipp_ppp_format_supported(
 	uint32_t in_format)
