@@ -777,6 +777,7 @@ u32 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel)
 			panel->fod_dim_lut[i - 1].alpha, panel->fod_dim_lut[i].alpha);
 }
 
+extern bool is_dimlayer_hbm_enabled;
 int dsi_panel_update_doze(struct dsi_panel *panel) {
 	int rc = 0;
 
@@ -784,6 +785,7 @@ int dsi_panel_update_doze(struct dsi_panel *panel) {
 		rc = dsi_panel_tx_cmd_set(panel, panel->doze_mode ? DSI_CMD_SET_DOZE_HBM : DSI_CMD_SET_DOZE_LBM);
 	} else {
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
+		dsi_panel_set_fod_hbm(panel, is_dimlayer_hbm_enabled);
 	}
 
 	if (rc)
@@ -2586,8 +2588,7 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 	}
 
 	rc = dsi_panel_parse_fod_dim_lut(panel, utils);
-	if (rc)
-		pr_err("[%s failed to parse fod dim lut\n", panel->name);
+	if (rc) pr_err("[%s failed to parse fod dim lut\n", panel->name);
 
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
 		rc = dsi_panel_parse_bl_pwm_config(panel);
@@ -4558,8 +4559,9 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		panel->panel_initialized = true;
 	mutex_unlock(&panel->panel_lock);
 
-  if (panel->hbm_mode)
-		dsi_panel_apply_hbm_mode(panel);
+	dsi_panel_set_fod_hbm(panel, is_dimlayer_hbm_enabled);
+
+	if (panel->hbm_mode) dsi_panel_apply_hbm_mode(panel);
 
 	return rc;
 }
