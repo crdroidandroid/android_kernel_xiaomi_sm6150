@@ -128,6 +128,8 @@ struct dsi_backlight_config {
 	u32 bl_doze_lpm;
 	u32 bl_doze_hbm;
 
+	u32 bl_dimlayer_dc_level;
+
 	int en_gpio;
 
 	bool dcs_type_ss_ea;
@@ -256,6 +258,9 @@ struct dsi_panel {
 
 	struct brightness_alpha_pair *fod_dim_lut;
 	u32 fod_dim_lut_count;
+
+	struct brightness_alpha_pair *bl_dim_lut;
+	u32 bl_dim_lut_count;
 };
 
 static inline bool dsi_panel_ulps_feature_enabled(struct dsi_panel *panel)
@@ -382,8 +387,10 @@ int dsi_panel_set_doze_mode(struct dsi_panel *panel, enum dsi_doze_mode_type mod
 
 int dsi_panel_set_fod_hbm(struct dsi_panel *panel, bool status);
 
-u32 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel);
+u32 dsi_panel_get_dim_alpha(struct dsi_panel *panel, struct brightness_alpha_pair * dim_lut, u32 lut_cnt);
 
 int dsi_panel_apply_hbm_mode(struct dsi_panel *panel);
+
+int dsi_panel_set_dimlayer_bl_backlight(struct dsi_panel *panel, bool status);
 
 #endif /* _DSI_PANEL_H_ */
