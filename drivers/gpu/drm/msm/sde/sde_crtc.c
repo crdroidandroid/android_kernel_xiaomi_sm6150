@@ -5301,6 +5301,7 @@ static int _sde_crtc_check_secure_state(struct drm_crtc *crtc,
 }
 
 extern bool is_dimlayer_hbm_enabled;
+extern bool is_dimlayer_bl_enabled;
 static struct sde_hw_dim_layer* sde_crtc_setup_fod_dim_layer(
 		struct sde_crtc_state *cstate,
 		uint32_t stage)
@@ -5338,7 +5339,16 @@ static struct sde_hw_dim_layer* sde_crtc_setup_fod_dim_layer(
 	}
 
 	mutex_lock(&display->panel->panel_lock);
-	alpha = dsi_panel_get_fod_dim_alpha(display->panel);
+	alpha =
+	    dsi_panel_get_dim_alpha(display->panel, display->panel->fod_dim_lut,
+				    display->panel->fod_dim_lut_count);
+	if (is_dimlayer_bl_enabled && !is_dimlayer_hbm_enabled) {
+		alpha = display->panel->doze_enabled
+			    ? 0
+			    : dsi_panel_get_dim_alpha(
+				  display->panel, display->panel->bl_dim_lut,
+				  display->panel->bl_dim_lut_count);
+	}
 	mutex_unlock(&display->panel->panel_lock);
 
 	dim_layer = &cstate->dim_layer[cstate->num_dim_layers];
@@ -5367,7 +5377,7 @@ static void sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
 		}
 	}
 
-	if (is_dimlayer_hbm_enabled) {
+	if (is_dimlayer_hbm_enabled || is_dimlayer_bl_enabled) {
 		if (fod_layer_index >= 0) {
 			if (zpos > pstates[fod_layer_index].stage)
 				zpos = pstates[fod_layer_index].stage;
