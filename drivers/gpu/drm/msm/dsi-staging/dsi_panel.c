@@ -754,30 +754,28 @@ static u32 interpolate(uint32_t x, uint32_t xa, uint32_t xb, uint32_t ya, uint32
 	return ya - (ya - yb) * (x - xa) / (xb - xa);
 }
 
-u32 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel)
+u32 dsi_panel_get_dim_alpha(struct dsi_panel *panel, struct brightness_alpha_pair * dim_lut, u32 lut_cnt)
 {
 	u32 brightness = dsi_panel_get_backlight(panel);
 	int i;
 
-	if (!panel->fod_dim_lut)
-		return 0;
-
-	for (i = 0; i < panel->fod_dim_lut_count; i++)
-		if (panel->fod_dim_lut[i].brightness >= brightness)
+	for (i = 0; i < lut_cnt; i++)
+		if (dim_lut[i].brightness >= brightness)
 			break;
 
 	if (i == 0)
-		return panel->fod_dim_lut[i].alpha;
+		return dim_lut[i].alpha;
 
-	if (i == panel->fod_dim_lut_count)
-		return panel->fod_dim_lut[i - 1].alpha;
+	if (i == lut_cnt)
+		return dim_lut[i - 1].alpha;
 
 	return interpolate(brightness,
-			panel->fod_dim_lut[i - 1].brightness, panel->fod_dim_lut[i].brightness,
-			panel->fod_dim_lut[i - 1].alpha, panel->fod_dim_lut[i].alpha);
+			dim_lut[i - 1].brightness, dim_lut[i].brightness,
+			dim_lut[i - 1].alpha, dim_lut[i].alpha);
 }
 
 extern bool is_dimlayer_hbm_enabled;
+extern bool is_dimlayer_bl_enabled;
 int dsi_panel_update_doze(struct dsi_panel *panel) {
 	int rc = 0;
 
@@ -786,6 +784,7 @@ int dsi_panel_update_doze(struct dsi_panel *panel) {
 	} else {
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
 		dsi_panel_set_fod_hbm(panel, is_dimlayer_hbm_enabled);
+		dsi_panel_set_dimlayer_bl_backlight(panel, is_dimlayer_bl_enabled);
 	}
 
 	if (rc)
@@ -853,6 +852,22 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 	default:
 		pr_err("Backlight type(%d) not supported\n", bl->type);
 		rc = -ENOTSUPP;
+	}
+
+	return rc;
+}
+
+int dsi_panel_set_dimlayer_bl_backlight(struct dsi_panel *panel, bool status) {
+	int rc = 0;
+	u32 brightness = dsi_panel_get_backlight(panel);
+
+	if (status) {
+		dsi_panel_set_backlight(
+		    panel, brightness < panel->bl_config.bl_dimlayer_dc_level
+			       ? panel->bl_config.bl_dimlayer_dc_level
+			       : brightness);
+	} else {
+		dsi_panel_set_backlight(panel, brightness);
 	}
 
 	return rc;
@@ -2409,9 +2424,8 @@ error:
 	return rc;
 }
 
-static int dsi_panel_parse_fod_dim_lut(struct dsi_panel *panel,
-		struct dsi_parser_utils *utils)
-{
+static int dsi_panel_parse_dim_lut(struct dsi_panel *panel,
+				   struct dsi_parser_utils *utils) {
 	struct brightness_alpha_pair *lut;
 	u32 *array;
 	int count;
@@ -2419,30 +2433,31 @@ static int dsi_panel_parse_fod_dim_lut(struct dsi_panel *panel,
 	int rc;
 	int i;
 
-	if (!(panel->bl_config.dcs_type_ss_ea || panel->bl_config.dcs_type_ss_eb))
+	if (!(panel->bl_config.dcs_type_ss_ea ||
+	      panel->bl_config.dcs_type_ss_eb))
 		return 0;
 
 	len = utils->count_u32_elems(utils->data, "qcom,disp-fod-dim-lut");
 	if (len <= 0 || len % BRIGHTNESS_ALPHA_PAIR_LEN) {
-		pr_err("[%s] invalid number of elements, rc=%d\n",
-				panel->name, rc);
+		pr_err("[%s] invalid number of elements, rc=%d\n", panel->name,
+		       rc);
 		rc = -EINVAL;
 		goto count_fail;
 	}
 
 	array = kcalloc(len, sizeof(u32), GFP_KERNEL);
 	if (!array) {
-		pr_err("[%s] failed to allocate memory, rc=%d\n",
-				panel->name, rc);
+		pr_err("[%s] failed to allocate memory, rc=%d\n", panel->name,
+		       rc);
 		rc = -ENOMEM;
 		goto alloc_array_fail;
 	}
 
-	rc = utils->read_u32_array(utils->data,
-			"qcom,disp-fod-dim-lut", array, len);
+	rc = utils->read_u32_array(utils->data, "qcom,disp-fod-dim-lut", array,
+				   len);
 	if (rc) {
-		pr_err("[%s] failed to allocate memory, rc=%d\n",
-				panel->name, rc);
+		pr_err("[%s] failed to allocate memory, rc=%d\n", panel->name,
+		       rc);
 		goto read_fail;
 	}
 
@@ -2462,6 +2477,46 @@ static int dsi_panel_parse_fod_dim_lut(struct dsi_panel *panel,
 	panel->fod_dim_lut = lut;
 	panel->fod_dim_lut_count = count;
 
+	len = utils->count_u32_elems(utils->data, "qcom,disp-bl-dim-lut");
+	if (len <= 0 || len % BRIGHTNESS_ALPHA_PAIR_LEN) {
+		pr_err("[%s] invalid number of elements, rc=%d\n", panel->name,
+		       rc);
+		rc = -EINVAL;
+		goto count_fail;
+	}
+
+	array = kcalloc(len, sizeof(u32), GFP_KERNEL);
+	if (!array) {
+		pr_err("[%s] failed to allocate memory, rc=%d\n", panel->name,
+		       rc);
+		rc = -ENOMEM;
+		goto alloc_array_fail;
+	}
+
+	rc = utils->read_u32_array(utils->data, "qcom,disp-bl-dim-lut", array,
+				   len);
+	if (rc) {
+		pr_err("[%s] failed to allocate memory, rc=%d\n", panel->name,
+		       rc);
+		goto read_fail;
+	}
+
+	count = len / BRIGHTNESS_ALPHA_PAIR_LEN;
+	lut = kcalloc(count, sizeof(*lut), GFP_KERNEL);
+	if (!lut) {
+		rc = -ENOMEM;
+		goto alloc_lut_fail;
+	}
+
+	for (i = 0; i < count; i++) {
+		struct brightness_alpha_pair *pair = &lut[i];
+		pair->brightness = array[i * BRIGHTNESS_ALPHA_PAIR_LEN + 0];
+		pair->alpha = array[i * BRIGHTNESS_ALPHA_PAIR_LEN + 1];
+	}
+
+	panel->bl_dim_lut = lut;
+	panel->bl_dim_lut_count = count;
+
 alloc_lut_fail:
 read_fail:
 	kfree(array);
@@ -2470,6 +2525,8 @@ count_fail:
 	if (rc) {
 		panel->fod_dim_lut = NULL;
 		panel->fod_dim_lut_count = 0;
+		panel->bl_dim_lut = NULL;
+		panel->bl_dim_lut_count = 0;
 	}
 	return rc;
 }
@@ -2587,7 +2644,16 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 		panel->bl_config.bl_doze_hbm = val;
 	}
 
-	rc = dsi_panel_parse_fod_dim_lut(panel, utils);
+	rc = utils->read_u32(utils->data, "qcom,disp-dc-dimlayer-backlight",
+			     &val);
+	if (rc) {
+		panel->bl_config.bl_dimlayer_dc_level = 0;
+		pr_debug("set dc dimlayer low backlight to 0\n");
+	} else {
+		panel->bl_config.bl_dimlayer_dc_level = val;
+	}
+
+	rc = dsi_panel_parse_dim_lut(panel, utils);
 	if (rc) pr_err("[%s failed to parse fod dim lut\n", panel->name);
 
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
@@ -4561,6 +4627,9 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	mutex_unlock(&panel->panel_lock);
 
 	dsi_panel_set_fod_hbm(panel, is_dimlayer_hbm_enabled);
+	if (!is_dimlayer_hbm_enabled)
+		dsi_panel_set_dimlayer_bl_backlight(panel,
+						    is_dimlayer_bl_enabled);
 
 	if (panel->hbm_mode) dsi_panel_apply_hbm_mode(panel);
 
