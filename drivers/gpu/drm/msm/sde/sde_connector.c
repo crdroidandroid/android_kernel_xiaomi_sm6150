@@ -591,7 +591,9 @@ static int _sde_connector_update_dirty_properties(
 }
 
 extern bool is_dimlayer_hbm_enabled;
+extern bool is_dimlayer_bl_enabled;
 bool last_dimlayer_hbm_enabled;
+bool last_dimlayer_bl_enabled;
 bool last_dimlayer_status;
 void sde_connector_update_hbm(struct drm_connector *connector) {
 	struct sde_crtc_state *cstate;
@@ -616,13 +618,17 @@ void sde_connector_update_hbm(struct drm_connector *connector) {
 	status = cstate->fod_dim_layer != NULL;
 
 	if (last_dimlayer_hbm_enabled == is_dimlayer_hbm_enabled &&
+			last_dimlayer_bl_enabled == is_dimlayer_bl_enabled &&
 	    status == last_dimlayer_status)
 		return;
 
 	mutex_lock(&display->panel->panel_lock);
 	dsi_panel_set_fod_hbm(display->panel,
 			      status ? is_dimlayer_hbm_enabled : false);
+	dsi_panel_set_dimlayer_bl_backlight(
+	    display->panel, status ? is_dimlayer_bl_enabled : false);
 	last_dimlayer_hbm_enabled = is_dimlayer_hbm_enabled;
+	last_dimlayer_bl_enabled = is_dimlayer_bl_enabled;
 	last_dimlayer_status = status;
 	mutex_unlock(&display->panel->panel_lock);
 	dsi_display_set_fod_ui(display,
