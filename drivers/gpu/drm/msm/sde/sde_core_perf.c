@@ -1,4 +1,5 @@
 /* Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -220,6 +221,15 @@ static void _sde_core_perf_calc_crtc(struct sde_kms *kms,
 		}
 		perf->core_clk_rate = max(kms->perf.fix_core_clk_rate,
 						perf->core_clk_rate);
+	}
+
+	if (IS_SDMMAGPIE_TARGET(kms->catalog->hwversion)) {
+		perf->max_per_pipe_ib[SDE_POWER_HANDLE_DBUS_ID_MNOC] =
+			SDE_POWER_HANDLE_MNOC_OVERRIDE_IB_QUOTA;
+		perf->max_per_pipe_ib[SDE_POWER_HANDLE_DBUS_ID_LLCC] =
+			SDE_POWER_HANDLE_LLCC_OVERRIDE_IB_QUOTA;
+		perf->max_per_pipe_ib[SDE_POWER_HANDLE_DBUS_ID_EBI] =
+			SDE_POWER_HANDLE_EBI_OVERRIDE_IB_QUOTA;
 	}
 
 	SDE_EVT32(DRMID(crtc), perf->core_clk_rate,
