@@ -816,9 +816,6 @@ int dsi_panel_set_fod_hbm(struct dsi_panel *panel, bool status)
 {
 	int rc = 0;
 
-	if (panel->doze_enabled)
-		rc = dsi_panel_update_doze(panel);
-
 	rc = dsi_panel_tx_cmd_set(panel, status ? DSI_CMD_SET_DISP_HBM_FOD_ON : DSI_CMD_SET_DISP_HBM_FOD_OFF);
 
 	if (rc)
@@ -3644,6 +3641,7 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	panel->doze_mode = DSI_DOZE_LPM;
 	panel->doze_enabled = false;
 	panel->power_mode = SDE_MODE_DPMS_OFF;
+	panel->fod_dimlayer_hbm_enabled = false;
 
 	g_panel = panel;
 
@@ -4556,6 +4554,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		       panel->name, rc);
 	else
 		panel->panel_initialized = true;
+
 	mutex_unlock(&panel->panel_lock);
 
 	if (panel->hbm_mode) dsi_panel_apply_hbm_mode(panel);
@@ -4647,6 +4646,7 @@ int dsi_panel_disable(struct dsi_panel *panel)
 	panel->panel_initialized = false;
 	panel->power_mode = SDE_MODE_DPMS_OFF;
 	panel->doze_enabled = false;
+	panel->fod_dimlayer_hbm_enabled = false;
 
 	mutex_unlock(&panel->panel_lock);
 	return rc;

@@ -1235,6 +1235,7 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 			pr_err("Connector Post kickoff failed rc=%d\n",
 					 rc);
 		}
+		sde_connector_fod_notify(connector);
 	}
 
 	_sde_kms_drm_check_dpms(old_state, MSM_DRM_EVENT_BLANK);
