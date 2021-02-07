@@ -590,36 +590,139 @@ static int _sde_connector_update_dirty_properties(
 	return 0;
 }
 
-void sde_connector_update_hbm(struct drm_connector *connector) {
-	static atomic_t effective_status = ATOMIC_INIT(false);
-	struct sde_crtc_state *cstate;
-	struct sde_connector *c_conn;
-	struct dsi_display *display;
-	bool status;
-
-	if (!connector) {
-		SDE_ERROR("invalid connector\n");
+void sde_crtc_fod_ui_ready(struct dsi_display *display, int type, int value)
+{
+	if (!display)
 		return;
+
+	if (type == 1) /* HBM */
+	{
+		if (value == 0)
+			display->panel->fod_ui_ready &= ~0x01;
+		else if (value == 1)
+			display->panel->fod_ui_ready |= 0x01;
 	}
 
-	c_conn = to_sde_connector(connector);
-	if (c_conn->connector_type != DRM_MODE_CONNECTOR_DSI) return;
+	if (type == 2) /* ICON */
+	{
+		if (value == 0)
+			display->panel->fod_ui_ready &= ~0x02;
+		else if (value == 1) {
+			display->panel->fod_ui_ready |= 0x02;
+		}
+	}
+	sysfs_notify(&display->drm_conn->kdev->kobj, NULL, "fod_ui_ready");
+}
 
-	display = (struct dsi_display *)c_conn->display;
+int sde_connector_update_hbm(struct sde_connector *c_conn)
+{
+	struct drm_connector *connector;
+	struct dsi_display *dsi_display;
+	static bool hbm_overlay;
+	int rc = 0;
+
+	if (!c_conn) {
+		SDE_ERROR("invalid connector\n");
+		return -EINVAL;
+	}
+
+	connector = &c_conn->base;
+	if (c_conn->connector_type != DRM_MODE_CONNECTOR_DSI)
+		return -EINVAL;
+
+	dsi_display = c_conn->display;
 
 	if (!c_conn->encoder || !c_conn->encoder->crtc ||
 	    !c_conn->encoder->crtc->state)
+		return -EINVAL;
+
+	hbm_overlay = c_conn->mi_dimlayer_state.mi_dimlayer_type &
+		      MI_DIMLAYER_FOD_HBM_OVERLAY;
+
+	SDE_ERROR("hbm_overlay:%d, mi_dimlayer_type:%d fod_hbm_enabled:%d \n",
+		  hbm_overlay, c_conn->mi_dimlayer_state.mi_dimlayer_type,
+		  dsi_display->panel->fod_dimlayer_hbm_enabled);
+
+	if (!hbm_overlay) {
+		if (dsi_display->panel->fod_dimlayer_hbm_enabled) {
+			if (dsi_display->panel->doze_enabled)
+				rc = dsi_panel_update_doze(dsi_display->panel);
+			else {
+				mutex_lock(&dsi_display->panel->panel_lock);
+				rc = dsi_panel_set_fod_hbm(dsi_display->panel,
+						      false);
+				dsi_display->panel->fod_dimlayer_hbm_enabled =
+					false;
+				mutex_unlock(&dsi_display->panel->panel_lock);
+			}
+		}
+	} else {
+		if (!dsi_display->panel->fod_dimlayer_hbm_enabled) {
+			mutex_lock(&dsi_display->panel->panel_lock);
+			c_conn->hbm_ntfy_skip_flag = 3;
+			rc = dsi_panel_set_fod_hbm(dsi_display->panel, true);
+			dsi_display->panel->fod_dimlayer_hbm_enabled = true;
+			if (dsi_display->panel->doze_enabled)
+			c_conn->hbm_ntfy_skip_flag = 4;
+			mutex_unlock(&dsi_display->panel->panel_lock);
+		}
+	}
+
+	return rc;
+}
+
+void sde_connector_fod_notify(struct drm_connector *conn)
+{
+	struct sde_connector *c_conn;
+	bool icon, hbm_state;
+	static bool last_icon = false;
+	static bool last_hbm_state = false;
+	struct dsi_display *dsi_display;
+
+	if (!conn) {
+		SDE_ERROR("invalid params\n");
 		return;
+	}
 
-	cstate = to_sde_crtc_state(c_conn->encoder->crtc->state);
-	status = cstate->fod_dim_layer != NULL;
-	if (atomic_xchg(&effective_status, status) == status) return;
+	c_conn = to_sde_connector(conn);
+	if (c_conn->connector_type != DRM_MODE_CONNECTOR_DSI) {
+		SDE_ERROR("not DRM_MODE_CONNECTOR_DSIl\n");
+		return;
+	}
 
-	mutex_lock(&display->panel->panel_lock);
-	dsi_panel_set_fod_hbm(display->panel, status);
-	mutex_unlock(&display->panel->panel_lock);
+	dsi_display = (struct dsi_display *)c_conn->display;
+	if (!dsi_display || !dsi_display->panel) {
+		SDE_ERROR("invalid display/panel\n");
+		return;
+	}
 
-	dsi_display_set_fod_ui(display, status);
+	if (c_conn->hbm_ntfy_skip_flag) {
+		c_conn->hbm_ntfy_skip_flag--;
+		pr_info("%s: hbm_ntfy_skip_flag[%d]",
+			__func__, c_conn->hbm_ntfy_skip_flag);
+		return;
+	}
+
+	icon = c_conn->mi_dimlayer_state.mi_dimlayer_type &
+	       MI_DIMLAYER_FOD_ICON;
+	if (last_icon != icon) {
+		if (icon) {
+			sde_crtc_fod_ui_ready(dsi_display, 2, 1);
+		} else {
+			sde_crtc_fod_ui_ready(dsi_display, 2, 0);
+		}
+	}
+	last_icon = icon;
+
+	hbm_state = dsi_display->panel->fod_dimlayer_hbm_enabled;
+	if (last_hbm_state != hbm_state) {
+		if (hbm_state) {
+			sde_crtc_fod_ui_ready(dsi_display, 1, 1);
+		} else {
+			sde_crtc_fod_ui_ready(dsi_display, 1, 0);
+		}
+	}
+	last_hbm_state = hbm_state;
 }
 
 int sde_connector_pre_kickoff(struct drm_connector *connector)
@@ -654,8 +757,6 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 	params.hdr_meta = &c_state->hdr_meta;
 
 	SDE_EVT32_VERBOSE(connector->base.id);
-
-	sde_connector_update_hbm(connector);
 
 	rc = c_conn->ops.pre_kickoff(connector, c_conn->display, &params);
 
@@ -2506,4 +2607,11 @@ int sde_connector_event_notify(struct drm_connector *connector, uint32_t type,
 			connector->base.id, type, val);
 
 	return ret;
+}
+
+void sde_connector_mi_update_dimlayer_state(
+	struct drm_connector *connector, enum mi_dimlayer_type mi_dimlayer_type)
+{
+	struct sde_connector *c_conn = to_sde_connector(connector);
+	c_conn->mi_dimlayer_state.mi_dimlayer_type = mi_dimlayer_type;
 }
