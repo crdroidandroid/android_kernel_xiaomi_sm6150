@@ -495,4 +495,10 @@ struct sde_drm_roi_misr_v1 {
 #define SDE_RECOVERY_CAPTURE		1
 #define SDE_RECOVERY_HARD_RESET		2
 
+/**
+ * sde fod zpos value for notifying client
+ */
+#define FOD_HBM_LAYER_ZORDER     0x1000000u
+#define FOD_ICON_LAYER_ZORDER    0x2000000u
+
 #endif /* _SDE_DRM_H_ */
