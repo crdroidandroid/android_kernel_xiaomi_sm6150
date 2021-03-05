@@ -29,6 +29,14 @@
 
 #include "sf_ctl.h"
 
+#if XIAOMI_DRM_INTERFACE_WA
+#include <drm/drm_bridge.h>
+#include <drm/drm_notifier.h>
+
+#define FP_UNLOCK_REJECTION_TIMEOUT   1500
+
+#endif
+
 #if SF_BEANPOD_COMPATIBLE_V1
 #include "nt_smc_call.h"
 #endif
@@ -234,7 +242,6 @@ static int sf_ctl_set_irq_type(unsigned long type)
 static void sf_ctl_device_event(struct work_struct *ws)
 {
     char *uevent_env[2] = { SF_INT_EVENT_NAME, NULL };
-    xprintk(SF_LOG_LEVEL, "%s(..) enter.\n", __FUNCTION__);
     kobject_uevent_env(&sf_ctl_dev.miscdev.this_device->kobj,
                        KOBJ_CHANGE, uevent_env);
 }
@@ -301,6 +308,13 @@ static int sf_ctl_report_key_event(struct input_dev *input, sf_key_event_t *keve
 
         case SF_KEY_WAKEUP:
             key_code = KEY_WAKEUP;
+#if XIAOMI_DRM_INTERFACE_WA
+
+            if (kevent->value && sf_ctl_dev.is_fb_black) {
+                schedule_work(&sf_ctl_dev.work_drm);
+            }
+
+#endif
             break;
 
         case SF_KEY_F12:
@@ -313,7 +327,6 @@ static int sf_ctl_report_key_event(struct input_dev *input, sf_key_event_t *keve
 
     input_report_key(input, key_code, kevent->value);
     input_sync(input);
-    xprintk(SF_LOG_LEVEL, "%s(..) leave.\n", __FUNCTION__);
     return err;
 }
 
@@ -332,7 +345,6 @@ static long sf_ctl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
     int err = 0;
     sf_key_event_t kevent;
-    xprintk(SF_LOG_LEVEL, "%s(_IO(type,nr) nr= 0x%08x, ..)\n", __FUNCTION__, _IOC_NR(cmd));
 
     switch (cmd) {
         case SF_IOC_INIT_DRIVER: {
@@ -626,31 +638,61 @@ static int sf_adf_event_handler( \
 static int sf_fb_notifier_callback(struct notifier_block *self,
                                    unsigned long event, void *data)
 {
+    struct sf_ctl_device *ctl_dev = container_of(self, struct sf_ctl_device, notifier);
     struct fb_event *evdata = data;
     unsigned int blank;
     int retval = 0;
 
-    if (event != FB_EVENT_BLANK /* FB_EARLY_EVENT_BLANK */) {
+    if ((ctl_dev == NULL) || (evdata == NULL) || (evdata->data == NULL)) {
         return 0;
     }
 
     blank = *(int *)evdata->data;
+#if XIAOMI_DRM_INTERFACE_WA
 
-    switch (blank) {
-        case FB_BLANK_UNBLANK:
-            sf_resume();
-            break;
+    if (event == DRM_EVENT_BLANK) {
+        switch (blank) {
+            case DRM_BLANK_UNBLANK:
+                ctl_dev->is_fb_black = false;
+                break;
 
-        case FB_BLANK_POWERDOWN:
-            sf_suspend();
-            break;
+            case DRM_BLANK_POWERDOWN:
+                ctl_dev->is_fb_black = true;
+                break;
 
-        default:
-            break;
+            default:
+                break;
+        }
+    }
+
+#endif
+
+    if (event == FB_EVENT_BLANK /* FB_EARLY_EVENT_BLANK */) {
+        switch (blank) {
+            case FB_BLANK_UNBLANK:
+                sf_resume();
+                break;
+
+            case FB_BLANK_POWERDOWN:
+                sf_suspend();
+                break;
+
+            default:
+                break;
+        }
     }
 
     return retval;
 }
+
+#if XIAOMI_DRM_INTERFACE_WA
+static void sf_drm_notification_work(struct work_struct *work)
+{
+    xprintk(KERN_ERR, "receive unblank event\n", __FUNCTION__);
+    dsi_bridge_interface_enable(FP_UNLOCK_REJECTION_TIMEOUT);
+}
+#endif
+
 #endif //SF_CFG_HAS_EARLYSUSPEND
 ////////////////////////////////////////////////////////////////////////////////
 static int sf_remove(sf_device_t *spi)
@@ -664,7 +706,11 @@ static int sf_remove(sf_device_t *spi)
         // TODO: is it name adf_unregister_client? Unverified it.
         adf_unregister_client(&sf_ctl_dev.adf_event_block);
 #else
+#if XIAOMI_DRM_INTERFACE_WA
+        drm_unregister_client(&sf_ctl_dev.notifier);
+#else
         fb_unregister_client(&sf_ctl_dev.notifier);
+#endif
 #endif
 
         if (sf_ctl_dev.input) {
@@ -859,7 +905,13 @@ static int sf_probe(sf_device_t *dev)
 
 #else
     sf_ctl_dev.notifier.notifier_call = sf_fb_notifier_callback;
+#if XIAOMI_DRM_INTERFACE_WA
+    sf_ctl_dev.is_fb_black = false;
+    INIT_WORK(&sf_ctl_dev.work_drm, sf_drm_notification_work);
+    drm_register_client(&sf_ctl_dev.notifier);
+#else
     fb_register_client(&sf_ctl_dev.notifier);
+#endif
 #endif
     /* beanpod ISEE2.7 */
 #if SF_BEANPOD_COMPATIBLE_V2_7

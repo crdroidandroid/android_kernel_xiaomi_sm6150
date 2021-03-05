@@ -123,6 +123,10 @@ struct sf_ctl_device {
     struct notifier_block adf_event_block;
 #else
     struct notifier_block notifier;
+#if XIAOMI_DRM_INTERFACE_WA
+    struct work_struct work_drm;
+    bool is_fb_black;
+#endif
 #endif
     char *spi_buffer;
     int attribute;
