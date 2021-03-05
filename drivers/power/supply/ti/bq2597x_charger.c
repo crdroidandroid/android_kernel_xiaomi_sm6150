@@ -941,6 +941,9 @@ static int bq2597x_enable_bat_therm(struct bq2597x *bq, bool enable)
 }
 EXPORT_SYMBOL_GPL(bq2597x_enable_bat_therm);
 
+/*
+ * the input threshold is the raw value that would write to register directly.
+ */
 static int bq2597x_set_bat_therm_th(struct bq2597x *bq, u8 threshold)
 {
 	int ret;
@@ -968,6 +971,9 @@ static int bq2597x_enable_bus_therm(struct bq2597x *bq, bool enable)
 }
 EXPORT_SYMBOL_GPL(bq2597x_enable_bus_therm);
 
+/*
+ * the input threshold is the raw value that would write to register directly.
+ */
 static int bq2597x_set_bus_therm_th(struct bq2597x *bq, u8 threshold)
 {
 	int ret;
@@ -996,11 +1002,15 @@ static int bq2597x_enable_die_therm(struct bq2597x *bq, bool enable)
 }
 EXPORT_SYMBOL_GPL(bq2597x_enable_die_therm);
 
+/*
+ * please be noted that the unit here is degC
+ */
 static int bq2597x_set_die_therm_th(struct bq2597x *bq, u8 threshold)
 {
 	int ret;
 	u8 val;
 
+	/*BE careful, LSB is here is 1/LSB, so we use multiply here*/
 	val = (threshold - BQ2597X_TDIE_ALM_BASE) * BQ2597X_TDIE_ALM_LSB;
 	val <<= BQ2597X_TDIE_ALM_SHIFT;
 
@@ -1118,6 +1128,7 @@ static int sc8551_optimize_adc(struct bq2597x *bq)
 {
 	int ret = 0, val = SC8551_ADC_OPTI;
 
+	/* optimize adc accuracy */
 	val <<= SC8551_ADC_OPTI_SHIFT;
 	ret = bq2597x_update_bits(bq, SC8551_REG_34, SC8551_ADC_OPTI_MASK, val);
 
@@ -1258,6 +1269,8 @@ static int sc8551_set_charge_mode(struct bq2597x *bq, int mode)
 	ret = bq2597x_update_bits(bq, SC8551_REG_31,
 				SC8551_CHARGE_MODE_MASK, val);
 
+	/* in bypass mode, ovp will be set to half value automatically */
+	/* in charge_pump mode, should set it manually */
 	if (mode == SC8551_CHARGE_MODE_DIV2) {
 		ret = bq2597x_set_acovp_th(bq, bq->cfg->ac_ovp_th);
 		ret = bq2597x_set_busovp_th(bq, bq->cfg->bus_ovp_th);
@@ -1642,6 +1655,13 @@ static int bq2597x_parse_dt(struct bq2597x *bq, struct device *dev)
 		return ret;
 	}
 
+	/*ret = of_property_read_u32(np, "ti,bq2597x,sense-resistor-mohm",
+			&bq->cfg->sense_r_mohm);
+	if (ret) {
+		bq_err("failed to read sense-resistor-mohm\n");
+		return ret;
+	}*/
+
 	if (bq->chip_vendor == SC8551) {
 		bq->cfg->sc8551_bypass_enable = of_property_read_bool(np,
 				"sc8551,bypass-enable");
@@ -1831,6 +1851,10 @@ static int bq2597x_init_adc(struct bq2597x *bq)
 static int bq2597x_init_int_src(struct bq2597x *bq)
 {
 	int ret;
+	/*TODO:be careful ts bus and ts bat alarm bit mask is in
+	 *	fault mask register, so you need call
+	 *	bq2597x_set_fault_int_mask for tsbus and tsbat alarm
+	 */
 	ret = bq2597x_set_alarm_int_mask(bq, ADC_DONE
 					| BAT_OCP_ALARM | BAT_UCP_ALARM
 					| BAT_OVP_ALARM);
@@ -2244,6 +2268,7 @@ static void bq2597x_check_alarm_status(struct bq2597x *bq)
 		bq_info("VDROP_OVP_FLAG =0x%02X\n",
 			!!(flag & BQ2597X_VDROP_OVP_FLAG_MASK));
 
+	/*read to clear alarm flag*/
 	ret = bq2597x_read_byte(bq, BQ2597X_REG_0E, &flag);
 	if (!ret && flag)
 		bq_info("INT_FLAG =0x%02X\n", flag);
@@ -2335,6 +2360,10 @@ static void bq2597x_charger_info(struct bq2597x *bq)
 				vbat, vbus, ibus);
 }
 
+/*
+ * interrupt does nothing, just info event chagne, other module could get info
+ * through power supply interface
+ */
 static irqreturn_t bq2597x_charger_interrupt(int irq, void *dev_id)
 {
 	struct bq2597x *bq = dev_id;

@@ -41,6 +41,8 @@
 #include "../pinconf.h"
 #include "pinctrl-msm.h"
 #include "../pinctrl-utils.h"
+#include <linux/wakeup_reason.h>
+#include <linux/syscore_ops.h>
 #include <soc/qcom/socinfo.h>
 #include <linux/suspend.h>
 #ifdef CONFIG_HIBERNATION
@@ -305,6 +307,7 @@ static int msm_config_group_get(struct pinctrl_dev *pctldev,
 
 	if (HARDWARE_PLATFORM_DAVINCI == hw_type
 	 || HARDWARE_PLATFORM_TOCO   == hw_type
+	 || HARDWARE_PLATFORM_SWEET  == hw_type
 	 || HARDWARE_PLATFORM_TUCANA == hw_type) {
 		/* gpio 0~3 is FP spi, gpio 59~62 is NFC spi */
 		if (group < 4 || (group > 58 && group < 63))
@@ -649,6 +652,7 @@ static void msm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 	for (i = 0; i < chip->ngpio; i++, gpio++) {
 		if (HARDWARE_PLATFORM_DAVINCI == hw_type
 			|| HARDWARE_PLATFORM_TOCO   == hw_type
+			|| HARDWARE_PLATFORM_SWEET  == hw_type
 			|| HARDWARE_PLATFORM_TUCANA == hw_type) {
 			/* gpio 0~3 is FP spi, gpio 59~62 is NFC spi */
 			if (i < 4 || (i > 58 && i < 63))
@@ -1868,6 +1872,7 @@ static void msm_pinctrl_setup_pm_reset(struct msm_pinctrl *pctrl)
 }
 
 #ifdef CONFIG_PM
+extern int msm_show_resume_irq_mask;
 #ifdef CONFIG_HIBERNATION
 static bool hibernation;
 
@@ -2069,6 +2074,7 @@ static void msm_pinctrl_resume(void)
 		val = readl_relaxed(pctrl->regs + g->intr_status_reg);
 		if (val & BIT(g->intr_status_bit)) {
 			irq = irq_find_mapping(pctrl->chip.irqdomain, i);
+			log_irq_wakeup_reason(irq);
 			desc = irq_to_desc(irq);
 			if (desc == NULL)
 				name = "stray irq";

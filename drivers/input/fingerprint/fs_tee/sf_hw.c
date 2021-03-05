@@ -259,8 +259,14 @@ static int sf_ctl_device_power_by_regulator(bool on)
         xprintk(KERN_ERR, "ctl_dev->vdd_reg is NULL.\n");
         return (-ENODEV);
     }
-    err = regulator_set_load(sf_ctl_dev->vdd_reg, 100000);
+
     if (on && !isPowerOn) {
+        err = regulator_set_load(sf_ctl_dev->vdd_reg, 100000);
+
+        if (err < 0) {
+            xprintk(KERN_ERR, "Regulator set_load failed err = %d\n", err);
+        }
+ 
         err = regulator_enable(sf_ctl_dev->vdd_reg);
 
         if (err) {
@@ -378,6 +384,7 @@ static int sf_ctl_device_free_gpio(struct sf_ctl_device *ctl_dev)
 #elif (SF_POWER_MODE_SEL == PWR_MODE_REGULATOR)
 
     if (ctl_dev->vdd_reg) {
+        sf_ctl_device_power(false);
         regulator_put(ctl_dev->vdd_reg);
         ctl_dev->vdd_reg = NULL;
     }
@@ -501,16 +508,6 @@ static int sf_ctl_device_init_gpio_pins(struct sf_ctl_device *ctl_dev)
         err = PTR_ERR(ctl_dev->vdd_reg);
         xprintk(KERN_ERR, "Regulator get failed vdd err = %d\n", err);
         return err;
-    }
-
-    if (regulator_count_voltages(ctl_dev->vdd_reg) > 0) {
-        err = regulator_set_voltage(ctl_dev->vdd_reg, SF_VDD_MIN_UV,
-                                    SF_VDD_MAX_UV);
-
-        if (err) {
-            xprintk(KERN_ERR, "Regulator set_vtg failed vdd err = %d\n", err);
-            return err;
-        }
     }
 
 #endif
