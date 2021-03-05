@@ -467,7 +467,7 @@ static int _sde_connector_update_power_locked(struct sde_connector *c_conn)
 	c_conn->last_panel_power_mode = mode;
 
 	mutex_unlock(&c_conn->lock);
-	if (mode > c_conn->max_esd_check_power_mode)
+	if (mode != SDE_MODE_DPMS_ON)
 		sde_connector_schedule_status_work(connector, false);
 	else
 		sde_connector_schedule_status_work(connector, true);
@@ -2543,7 +2543,6 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 	c_conn->dpms_mode = DRM_MODE_DPMS_ON;
 	c_conn->lp_mode = SDE_MODE_DPMS_OFF;
 	c_conn->last_panel_power_mode = SDE_MODE_DPMS_ON;
-	c_conn->max_esd_check_power_mode = SDE_MODE_DPMS_ON;
 
 	sde_kms = to_sde_kms(priv->kms);
 	if (sde_kms->vbif[VBIF_NRT]) {
@@ -2647,22 +2646,17 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 		}
 
 		/* register esd irq and enable it after panel enabled */
-		if (dsi_display && dsi_display->panel) {
-			if (dsi_display->panel->esd_config.esd_aod_enabled) {
-				c_conn->max_esd_check_power_mode = SDE_MODE_DPMS_LP2;
-			}
-
-			if (dsi_display->panel->esd_config.esd_err_irq_gpio > 0) {
-				rc = request_threaded_irq(dsi_display->panel->esd_config.esd_err_irq,
-								NULL, esd_err_irq_handle,
-								dsi_display->panel->esd_config.esd_err_irq_flags,
-								"esd_err_irq", c_conn);
-				if (rc < 0) {
-					pr_err("%s: request irq %d failed\n", __func__, dsi_display->panel->esd_config.esd_err_irq);
-						dsi_display->panel->esd_config.esd_err_irq = 0;
-				} else {
-					pr_info("%s: Request esd irq succeed!\n", __func__);
-				}
+		if (dsi_display && dsi_display->panel &&
+			dsi_display->panel->esd_config.esd_err_irq_gpio > 0) {
+			rc = request_threaded_irq(dsi_display->panel->esd_config.esd_err_irq,
+							NULL, esd_err_irq_handle,
+							dsi_display->panel->esd_config.esd_err_irq_flags,
+							"esd_err_irq", c_conn);
+			if (rc < 0) {
+				pr_err("%s: request irq %d failed\n", __func__, dsi_display->panel->esd_config.esd_err_irq);
+					dsi_display->panel->esd_config.esd_err_irq = 0;
+			} else {
+				pr_info("%s: Request esd irq succeed!\n", __func__);
 			}
 		}
 	}

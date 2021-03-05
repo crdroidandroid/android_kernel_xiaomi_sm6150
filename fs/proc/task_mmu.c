@@ -1706,6 +1706,9 @@ cont:
 		if (!page)
 			continue;
 
+		if (!PageLRU(page))
+			continue;
+
 		if (page_mapcount(page) != 1)
 			continue;
 

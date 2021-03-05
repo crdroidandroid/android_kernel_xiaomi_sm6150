@@ -1262,7 +1262,36 @@ static irqreturn_t qpnp_resin_irq(int irq, void *_pon)
 
 static irqreturn_t qpnp_kpdpwr_resin_bark_irq(int irq, void *_pon)
 {
-  	return IRQ_HANDLED;
+	struct qpnp_pon *pon = _pon;
+	int rc;
+	uint pon_rt_sts;
+
+
+	/* check the RT status to get the current status of the line */
+	rc = regmap_read(pon->regmap, QPNP_PON_RT_STS(pon), &pon_rt_sts);
+	if (rc) {
+		dev_err(pon->dev, "Unable to read PON RT status\n");
+		return IRQ_HANDLED;
+	}
+
+	if (pon_rt_sts & QPNP_PON_KPDPWR_RESIN_BARK_N_SET) {
+		rc = qpnp_pon_reset_config(pon, PON_POWER_OFF_WARM_RESET);
+		if (rc) {
+			dev_err(pon->dev,
+					"Error configuring main PON rc: %d\n",
+					rc);
+		}
+
+	} else {
+		rc = qpnp_pon_reset_config(pon, PON_POWER_OFF_HARD_RESET);
+		if (rc) {
+			dev_err(pon->dev,
+					"Error configuring main PON rc: %d\n",
+					rc);
+		}
+	}
+
+	return IRQ_HANDLED;
 }
 
 static irqreturn_t qpnp_cblpwr_irq(int irq, void *_pon)

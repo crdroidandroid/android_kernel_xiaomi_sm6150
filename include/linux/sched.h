@@ -1273,6 +1273,8 @@ struct task_struct {
 	 */
 	u64				timer_slack_ns;
 	u64				default_timer_slack_ns;
+	unsigned int top_app;
+	unsigned int woken_by_top_app;
 
 #ifdef CONFIG_KASAN
 	unsigned int			kasan_depth;

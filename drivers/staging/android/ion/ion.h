@@ -312,7 +312,6 @@ int ion_heap_buffer_zero(struct ion_buffer *buffer);
 int ion_heap_pages_zero(struct page *page, size_t size, pgprot_t pgprot);
 
 int ion_alloc_fd(size_t len, unsigned int heap_id_mask, unsigned int flags);
-int ion_alloc_fd_with_caller_pid(size_t len, unsigned int heap_id_mask, unsigned int flags, int pid_info);
 
 /**
  * ion_heap_init_shrinker

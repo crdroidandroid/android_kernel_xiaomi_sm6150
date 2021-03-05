@@ -996,9 +996,9 @@
 		clock-control-debugfs = "true";
 		clock-cntl-level = "lowsvs", "svs", "svs_l1", "turbo";
 		clock-rates =
-			<380000000 0 0>,
-			<400000000 0 0>,
-			<480000000 0 0>,
+			<600000000 0 0>,
+			<600000000 0 0>,
+			<600000000 0 0>,
 			<600000000 0 0>;
 		status = "ok";
 	};
