@@ -1069,7 +1069,7 @@ static const struct dma_buf_ops dma_buf_ops = {
 };
 
 struct dma_buf *ion_alloc_dmabuf(size_t len, unsigned int heap_id_mask,
-				 unsigned int flags, int pid_info)
+				 unsigned int flags)
 {
 	struct ion_device *dev = internal_dev;
 	struct ion_buffer *buffer = NULL;
@@ -1077,8 +1077,6 @@ struct dma_buf *ion_alloc_dmabuf(size_t len, unsigned int heap_id_mask,
 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
 	struct dma_buf *dmabuf;
 	char task_comm[TASK_COMM_LEN];
-	char caller_task_comm[TASK_COMM_LEN];
-	struct task_struct *p = current->group_leader;
 
 	pr_debug("%s: len %zu heap_id_mask %u flags %x\n", __func__,
 		 len, heap_id_mask, flags);
@@ -1092,24 +1090,6 @@ struct dma_buf *ion_alloc_dmabuf(size_t len, unsigned int heap_id_mask,
 
 	if (!len)
 		return ERR_PTR(-EINVAL);
-
-	if (pid_info <= 0) {
-		get_task_comm(task_comm, p);
-	} else {
-		get_task_comm(task_comm, p);
-		rcu_read_lock();
-		p = find_task_by_vpid(pid_info);
-		if (p) {
-			get_task_struct(p);
-			rcu_read_unlock();
-			get_task_comm(caller_task_comm, p);
-			put_task_struct(p);
-		} else {
-			rcu_read_unlock();
-			p = current->group_leader;
-			get_task_comm(caller_task_comm, p);
-		}
-	}
 
 	down_read(&dev->lock);
 	plist_for_each_entry(heap, &dev->heaps, node) {
@@ -1128,17 +1108,15 @@ struct dma_buf *ion_alloc_dmabuf(size_t len, unsigned int heap_id_mask,
 	if (IS_ERR(buffer))
 		return ERR_CAST(buffer);
 
+	get_task_comm(task_comm, current->group_leader);
+
 	exp_info.ops = &dma_buf_ops;
 	exp_info.size = buffer->size;
 	exp_info.flags = O_RDWR;
 	exp_info.priv = buffer;
-	if (pid_info <= 0) {
-		exp_info.exp_name = kasprintf(GFP_KERNEL, "%s-%s-%d-%s", KBUILD_MODNAME,
+	exp_info.exp_name = kasprintf(GFP_KERNEL, "%s-%s-%d-%s", KBUILD_MODNAME,
 				      heap->name, current->tgid, task_comm);
-	} else {
-		exp_info.exp_name = kasprintf(GFP_KERNEL, "%s-%s-%d-%s-caller|%d-%s|", KBUILD_MODNAME,
-				      heap->name, current->tgid, task_comm, pid_info, caller_task_comm);
-	}
+
 	dmabuf = dma_buf_export(&exp_info);
 	if (IS_ERR(dmabuf)) {
 		_ion_buffer_destroy(buffer);
@@ -1185,7 +1163,7 @@ struct dma_buf *ion_alloc(size_t len, unsigned int heap_id_mask,
 	if (!type_valid)
 		return ERR_PTR(-EINVAL);
 
-	return ion_alloc_dmabuf(len, heap_id_mask, flags, 0);
+	return ion_alloc_dmabuf(len, heap_id_mask, flags);
 }
 EXPORT_SYMBOL(ion_alloc);
 
@@ -1194,26 +1172,10 @@ int ion_alloc_fd(size_t len, unsigned int heap_id_mask, unsigned int flags)
 	int fd;
 	struct dma_buf *dmabuf;
 
-	dmabuf = ion_alloc_dmabuf(len, heap_id_mask, flags, 0);
+	dmabuf = ion_alloc_dmabuf(len, heap_id_mask, flags);
 	if (IS_ERR(dmabuf)) {
 		return PTR_ERR(dmabuf);
 	}
-
-	fd = dma_buf_fd(dmabuf, O_CLOEXEC);
-	if (fd < 0)
-		dma_buf_put(dmabuf);
-
-	return fd;
-}
-
-int ion_alloc_fd_with_caller_pid(size_t len, unsigned int heap_id_mask, unsigned int flags, int pid_info)
-{
-	int fd;
-	struct dma_buf *dmabuf;
-
-	dmabuf = ion_alloc_dmabuf(len, heap_id_mask, flags, pid_info);
-	if (IS_ERR(dmabuf))
-		return PTR_ERR(dmabuf);
 
 	fd = dma_buf_fd(dmabuf, O_CLOEXEC);
 	if (fd < 0)
