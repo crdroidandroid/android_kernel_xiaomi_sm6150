@@ -31,6 +31,9 @@
 #ifdef CONFIG_LAST_TOUCH_EVENTS
 #include <linux/rtc.h>
 #endif
+#ifdef CONFIG_TOUCH_COUNT_DUMP
+#include <linux/input/touch_common_info.h>
+#endif
 #include "input-compat.h"
 
 MODULE_AUTHOR("Vojtech Pavlik <vojtech@suse.cz>");
@@ -81,6 +84,9 @@ static int input_device_is_touch(struct input_dev *input_dev)
 static inline void touch_press_release_events_collect(struct input_dev *dev,
 		 unsigned int type, unsigned int code, int value)
 {
+#ifdef CONFIG_TOUCH_COUNT_DUMP
+	char ch[64] = {0x0,};
+#endif
 	struct touch_event *touch_event_buf;
 	struct touch_event_info *touch_events;
 
@@ -126,6 +132,7 @@ static inline void touch_press_release_events_collect(struct input_dev *dev,
 					touch_events->touch_is_pressed = false;
 #ifdef CONFIG_TOUCH_COUNT_DUMP
 					touch_events->click_num++;
+					snprintf(ch, sizeof(ch), "%llu", touch_events->click_num);
 #endif
 				}
 				touch_events->finger_bitmap = 0;
@@ -1427,6 +1434,7 @@ static ssize_t input_touch_count_read(struct file *file, char __user *buf, size_
 static ssize_t input_touch_count_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)
 {
 	char tmp[MAX_CLICK_SIZE];
+	char ch[64] = {0x0,};
 
 	if (count > MAX_CLICK_SIZE || (touch_info) == NULL)
 		return -EINVAL;
@@ -1437,6 +1445,7 @@ static ssize_t input_touch_count_write(struct file *file, const char __user *buf
 	if (sscanf(tmp, "%llu\n", &touch_info->click_num) != 1)
 		return -EINVAL;
 	else {
+		snprintf(ch, sizeof(ch), "%llu", touch_info->click_num);
 		return count;
 	}
 }
@@ -2400,7 +2409,6 @@ int input_register_device(struct input_dev *dev)
 #ifdef CONFIG_TOUCH_COUNT_DUMP
 		touch_info = dev->touch_events;
 #endif
-
 	}
 #endif
 	return 0;

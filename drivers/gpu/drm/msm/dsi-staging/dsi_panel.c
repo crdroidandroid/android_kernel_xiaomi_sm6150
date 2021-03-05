@@ -916,15 +916,49 @@ ssize_t dsi_panel_get_doze_backlight(struct dsi_display *display, char *buf)
 	return rc;
 }
 
-bool dc_skip_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
+bool dc_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
-/* 1. dc enable is 1;
- * 2. bl lvl should less than dc theshold;
- * 3. bl lvl not 0, we should not skip set 0;
- * 4. dc type is 1 means need backlight control here, 0 means IC can switch automatically.
- * When meet all the 4 conditions at the same time, skip set this bl.
- */
-	if (panel->dc_enable && bl_lvl < panel->dc_threshold && bl_lvl != 0 && panel->dc_type) {
+	int i = 0;
+	int crcValue = 255;
+	float mDCBLCoeff[2] = {0.5125, 4.9};
+	struct dsi_cmd_desc *cmds = NULL;
+	struct dsi_display_mode_priv_info *priv_info = panel->cur_mode->priv_info;
+	int writeCmd[21] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1};
+	u8 *tx_buf;
+
+	if (panel->k6_dc_flag && panel->dc_enable && bl_lvl < panel->dc_threshold && bl_lvl != 0
+		&& !panel->in_aod && panel->doze_brightness == DOZE_BRIGHTNESS_INVALID) {
+		crcValue = 0.5 + mDCBLCoeff[0] * bl_lvl + mDCBLCoeff[1]; //0.5 is for roundin
+		if (crcValue > 255)
+			crcValue = 255;
+		else if (crcValue < panel->bl_config.bl_min_level)
+			crcValue = panel->bl_config.bl_min_level;
+		else if (bl_lvl > panel->dc_threshold)
+			crcValue = 255;
+
+		if (panel->cur_mode->timing.refresh_rate == 60) {
+			cmds = priv_info->cmd_sets[DSI_CMD_SET_DISP_DC_CRC_SETTING_60HZ].cmds;
+			if (cmds) {
+				tx_buf = (u8 *)cmds[4].msg.tx_buf;
+				for (i = 0; i < 21; i++) {
+					writeCmd[i] = writeCmd[i] * (int)crcValue;
+					tx_buf[1+i] = writeCmd[i];
+					//pr_info("dc crcValue:%d, map 0x%02x bit[%d] =0x%02x\n", crcValue, tx_buf[0], 1+i, tx_buf[1+i]);
+				}
+			}
+			dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_DC_CRC_SETTING_60HZ);
+		} else {
+			cmds = priv_info->cmd_sets[DSI_CMD_SET_DISP_DC_CRC_SETTING_120HZ].cmds;
+			if (cmds) {
+				tx_buf = (u8 *)cmds[4].msg.tx_buf;
+				for (i = 0; i < 21; i++) {
+					writeCmd[i] = writeCmd[i] * (int)crcValue;
+					tx_buf[1+i] = writeCmd[i];
+					//pr_info("dc crcValue:%d, map 0x%02x bit[%d] =0x%02x\n", crcValue, tx_buf[0], 1+i, tx_buf[1+i]);
+				}
+			}
+			dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_DC_CRC_SETTING_120HZ);
+		}
 		return true;
 	} else {
 		return false;
@@ -942,9 +976,9 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 
 	pr_debug("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
 
-	if (dc_skip_set_backlight(panel, bl_lvl)) {
+	if (dc_set_backlight(panel, bl_lvl)) {
 		panel->last_bl_lvl = bl_lvl;
-		pr_debug("skip set backlight bacase dc enable %d, bl %d\n", panel->dc_enable, bl_lvl);
+		pr_debug("set dc backlight bacase dc enable %d, bl %d\n", panel->dc_enable, bl_lvl);
 		return rc;
 	}
 
@@ -2113,6 +2147,8 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-dispparam-dc-demura-l2-command",
 	"qcom,mdss-dsi-dispparam-dc-on-command",
 	"qcom,mdss-dsi-dispparam-dc-off-command",
+	"qcom,mdss-dsi-dispparam-60hz-dc-crc-setting-command",
+	"qcom,mdss-dsi-dispparam-120hz-dc-crc-setting-command",
 	"qcom,mdss-dsi-dispparam-bc-120hz-command",
 	"qcom,mdss-dsi-dispparam-bc-60hz-command",
 };
@@ -2205,6 +2241,8 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-dispparam-dc-demura-l2-command-state",
 	"qcom,mdss-dsi-dispparam-dc-on-command-state",
 	"qcom,mdss-dsi-dispparam-dc-off-command-state",
+	"qcom,mdss-dsi-dispparam-60hz-dc-crc-setting-command-state",
+	"qcom,mdss-dsi-dispparam-120hz-dc-crc-setting-command-state",
 	"qcom,mdss-dsi-dispparam-bc-120hz-command-state",
 	"qcom,mdss-dsi-dispparam-bc-60hz-command-state",
 };
@@ -3752,8 +3790,6 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 
 	esd_config->esd_enabled = utils->read_bool(utils->data,
 		"qcom,esd-check-enabled");
-	esd_config->esd_aod_enabled = utils->read_bool(utils->data,
-		"qcom,esd-aod-check-enabled");
 
 	if (!esd_config->esd_enabled)
 		return 0;
@@ -3851,12 +3887,11 @@ static void nolp_backlight_delayed_work(struct work_struct *work)
 
 	panel->in_aod = false;
 	if (panel->last_bl_lvl != 0) {
-		if (panel->dc_enable && panel->last_bl_lvl < panel->dc_threshold) {
-			pr_info("%s: dc is on, skip set brightness = %d\n", __func__, panel->last_bl_lvl);
-			return;
-		}
+		if (panel->dc_enable && panel->last_bl_lvl < panel->dc_threshold)
+			dc_set_backlight(panel, panel->last_bl_lvl);
+		else
+			dsi_panel_set_backlight(panel, panel->last_bl_lvl);
 		pr_info("%s: set brightness = %d\n", __func__, panel->last_bl_lvl);
-		dsi_panel_set_backlight(panel, panel->last_bl_lvl);
 	}
 }
 
@@ -4009,22 +4044,18 @@ static int dsi_panel_parse_mi_config(struct dsi_panel *panel,
 		pr_err("can't get doze lbm brightness\n");
 	}
 
- 	rc = of_property_read_u32(of_node,
-			"mi,mdss-dsi-panel-dc-threshold", &panel->dc_threshold);
+	panel->k6_dc_flag = utils->read_bool(of_node,
+			"qcom,mdss-dsi-panel-k6-dc-flag");
+	if (panel->k6_dc_flag)
+		pr_info("k6 dc flag enabled.\n");
+
+	rc = of_property_read_u32(of_node,
+			"qcom,mdss-dsi-panel-dc-threshold", &panel->dc_threshold);
 	if (rc) {
-		panel->dc_threshold = 488;
+		panel->dc_threshold = 440;
 		pr_info("default dc backlight threshold is %d\n", panel->dc_threshold);
 	} else {
 		pr_info("dc backlight threshold %d \n", panel->dc_threshold);
-	}
-
-	rc = of_property_read_u32(of_node,
-			"mi,mdss-dsi-panel-dc-type", &panel->dc_type);
-	if (rc) {
-		panel->dc_type = 1;
-		pr_info("default dc backlight type is %d\n", panel->dc_type);
-	} else {
-		pr_info("dc backlight type %d \n", panel->dc_type);
 	}
 
 	dsi_panel_parse_elvss_dimming_config(panel);
@@ -5603,11 +5634,11 @@ int panel_disp_param_send_lock(struct dsi_panel *panel, int param)
 		}
 		break;
 	case DISPPARAM_BC_120HZ:
-		pr_info("zjz BC 120hz\n");
+		pr_info("BC 120hz\n");
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_BC_120HZ);
 		break;
 	case DISPPARAM_BC_60HZ:
-		pr_info("zjz BC 60hz\n");
+		pr_info("BC 60hz\n");
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_BC_60HZ);
 		break;
 	default:
@@ -6190,13 +6221,6 @@ int dsi_panel_enable(struct dsi_panel *panel)
 			pr_err("[%s] failed to send DSI_CMD_SET_DISP_DC_ON cmd, rc=%d\n",
 					panel->name, rc);
 	}
-	if (panel->dc_type == 0 && panel->dc_enable) {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_DC_ON);
-		if (rc)
-			pr_err("[%s] failed to send DSI_CMD_SET_DISP_DC_ON cmd, rc=%d\n",
-			panel->name, rc);
-	}
-
 
 	panel->hbm_enabled = false;
 	panel->fod_hbm_enabled = false;

@@ -2085,6 +2085,7 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags,
 {
 	unsigned long flags;
 	int cpu, success = 0;
+	struct rq *rq;
 
 	/*
 	 * If we are going to wake up a thread waiting for CONDITION we
@@ -2160,6 +2161,15 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags,
 	smp_cond_load_acquire(&p->on_cpu, !VAL);
 
 	walt_try_to_wake_up(p);
+
+	rq = cpu_rq(task_cpu(p));
+	// Strictly speaking we should use current
+	if (sched_boost_top_app() && rq->curr != NULL &&
+		(rq->curr->top_app || rq->curr->woken_by_top_app))
+		p->woken_by_top_app = 1;
+	else
+		p->woken_by_top_app = 0;
+
 
 	p->sched_contributes_to_load = !!task_contributes_to_load(p);
 	p->state = TASK_WAKING;
@@ -2299,6 +2309,8 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	p->se.nr_migrations		= 0;
 	p->se.vruntime			= 0;
 	p->last_sleep_ts		= 0;
+	p->top_app		= 0;
+	p->woken_by_top_app		= 0;
 	p->boost                = 0;
 	p->boost_expires        = 0;
 	p->boost_period         = 0;
