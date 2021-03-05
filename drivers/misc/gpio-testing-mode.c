@@ -18,7 +18,7 @@
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 
-struct sar_testing_mode_data {
+struct md_testing_mode_data {
 	struct device *dev;
 	int debounce_time;
 	int status_gpio;
@@ -30,7 +30,7 @@ struct sar_testing_mode_data {
 static ssize_t gpio_status_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct sar_testing_mode_data *data = dev_get_drvdata(dev);
+	struct md_testing_mode_data *data = dev_get_drvdata(dev);
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", gpio_get_value(data->status_gpio));
 }
@@ -39,8 +39,8 @@ static DEVICE_ATTR(status, S_IRUGO, gpio_status_show, NULL);
 #define MAX_MSG_LENGTH 20
 static void gpio_debounce_work(struct work_struct *work)
 {
-	struct sar_testing_mode_data *data =
-			container_of(work, struct sar_testing_mode_data, debounce_work.work);
+	struct md_testing_mode_data *data =
+			container_of(work, struct md_testing_mode_data, debounce_work.work);
 	struct device *dev = data->dev;
 	char status_env[MAX_MSG_LENGTH];
 	char *envp[] = { status_env, NULL };
@@ -48,33 +48,33 @@ static void gpio_debounce_work(struct work_struct *work)
 
 	if (gpio_status == data->gpio_status) {
 		snprintf(status_env, MAX_MSG_LENGTH, "STATUS=%d", gpio_status);
-		dev_info(dev, "Update sar testing mode status: %d\n", gpio_status);
+		dev_info(dev, "Update md testing mode status: %d\n", gpio_status);
 		kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
 	}
 	return;
 }
-static irqreturn_t sar_testing_threaded_irq_handler(int irq, void *irq_data)
+static irqreturn_t md_testing_threaded_irq_handler(int irq, void *irq_data)
 {
-	struct sar_testing_mode_data *data = irq_data;
+	struct md_testing_mode_data *data = irq_data;
 	struct device *dev = data->dev;
 
 	data->gpio_status = gpio_get_value(data->status_gpio);
-	dev_info(dev, "sar_testing_threaded_irq triggered\n");
+	dev_info(dev, "md_testing_threaded_irq triggered\n");
 	mod_delayed_work(system_wq, &data->debounce_work, msecs_to_jiffies(data->debounce_time));
 
 	return IRQ_HANDLED;
 }
 
-static int sar_testing_mode_probe(struct platform_device *pdev)
+static int md_testing_mode_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
-	struct sar_testing_mode_data *data;
+	struct md_testing_mode_data *data;
 
 	pr_info("%s enter\n", __func__);
 
-	data = devm_kzalloc(dev, sizeof(struct sar_testing_mode_data), GFP_KERNEL);
+	data = devm_kzalloc(dev, sizeof(struct md_testing_mode_data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
 
@@ -90,7 +90,7 @@ static int sar_testing_mode_probe(struct platform_device *pdev)
 
 	data->irq = gpio_to_irq(data->status_gpio);
 	ret = devm_request_threaded_irq(dev, data->irq, NULL,
-		sar_testing_threaded_irq_handler, IRQF_ONESHOT | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "sar_testing_mode", data);
+		md_testing_threaded_irq_handler, IRQF_ONESHOT | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "md_testing_mode", data);
 	if (ret < 0) {
 		dev_err(dev, "Failed to request irq.\n");
 		return -EINVAL;
@@ -111,29 +111,28 @@ static int sar_testing_mode_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int sar_testing_mode_remove(struct platform_device *pdev)
+static int md_testing_mode_remove(struct platform_device *pdev)
 {
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_status.attr);
 	return 0;
 }
 
-static const struct of_device_id sar_testing_mode_of_match[] = {
-	{ .compatible = "xiaomi,sar-testing-mode", },
+static const struct of_device_id md_testing_mode_of_match[] = {
+	{ .compatible = "modem,md-testing-mode", },
 	{},
 };
 
-static struct platform_driver sar_testing_mode_driver = {
+static struct platform_driver md_testing_mode_driver = {
 	.driver = {
-		.name = "sar-testing-mode",
+		.name = "md-testing-mode",
 		.owner = THIS_MODULE,
-		.of_match_table = of_match_ptr(sar_testing_mode_of_match),
+		.of_match_table = of_match_ptr(md_testing_mode_of_match),
 	},
-	.probe = sar_testing_mode_probe,
-	.remove = sar_testing_mode_remove,
+	.probe = md_testing_mode_probe,
+	.remove = md_testing_mode_remove,
 };
 
-module_platform_driver(sar_testing_mode_driver);
-MODULE_AUTHOR("Tao Jun<taojun@xiaomi.com>");
-MODULE_DESCRIPTION("A simple driver for GPIO sar testing mode");
+module_platform_driver(md_testing_mode_driver);
+MODULE_DESCRIPTION("A simple driver for GPIO md testing mode");
 MODULE_LICENSE("GPL");
 

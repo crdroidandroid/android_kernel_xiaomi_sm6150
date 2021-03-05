@@ -13,6 +13,8 @@
 #define SF_POWER_MODE_SEL           PWR_MODE_REGULATOR
 // debug log select
 #define SF_LOG_ENABLE               1
+// xiaomi fast unblank
+#define XIAOMI_DRM_INTERFACE_WA     1
 //-----------------------------------------------------------------------------
 
 /* Dts node. */
@@ -49,8 +51,6 @@
 
 /* regulator VDD select */
 #define SF_VDD_NAME                 "fs_vdd"
-#define SF_VDD_MIN_UV               3312000
-#define SF_VDD_MAX_UV               3312000
 //-----------------------------------------------------------------------------
 
 #define SF_INT_TRIG_HIGH            0

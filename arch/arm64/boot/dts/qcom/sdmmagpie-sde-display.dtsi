@@ -39,6 +39,7 @@
 #include "dsi-panel-sharp-qsync-wqhd-video.dtsi"
 #include "dsi-panel-sharp-qsync-fhd-video.dtsi"
 #include "dsi-panel-sharp-qsync-fhd-cmd.dtsi"
+#include "dsi-panel-k6-38-0c-0a-fhd-dsc-video.dtsi"
 #include <dt-bindings/clock/mdss-10nm-pll-clk.h>
 
 &soc {
@@ -450,6 +451,18 @@
 		qcom,dsi-panel = <&dsi_g7b_37_02_0b_video>;
 	};
 
+	dsi_k6_38_0c_0a_fhd_dsc_video_display: qcom,dsi-display@34 {
+
+		label = "dsi_k6_38_0c_0a_fhd_dsc_video_display";
+		qcom,display-type = "primary";
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&dsi_k6_38_0c_0a_fhd_dsc_video>;
+	};
+
 	sde_dsi: qcom,dsi-display {
 		compatible = "qcom,dsi-display";
 
@@ -511,7 +524,8 @@
 			&dsi_sharp_qsync_wqhd_cmd_display
 			&dsi_sharp_qsync_wqhd_video_display
 			&dsi_sharp_qsync_fhd_video_display
-			&dsi_sharp_qsync_fhd_cmd_display>;
+			&dsi_sharp_qsync_fhd_cmd_display
+			&dsi_k6_38_0c_0a_fhd_dsc_video_display>;
 
 	};
 
@@ -1089,6 +1103,19 @@
 			qcom,mdss-dsi-panel-phy-timings = [00 22 08 08 25 22 09
 			    08 06 02 04 00];
 			qcom,display-topology = <1 0 1>;
+			qcom,default-topology-index = <0>;
+		};
+	};
+};
+
+&dsi_k6_38_0c_0a_fhd_dsc_video {
+	qcom,mdss-dsi-t-clk-post = <0x0F>;
+	qcom,mdss-dsi-t-clk-pre = <0x37>;
+	qcom,mdss-dsi-display-timings {
+		timing@0{
+			qcom,mdss-dsi-panel-phy-timings = [00 24 0a 0a 26 25 09
+			    0a 06 02 04 00];
+			qcom,display-topology = <1 1 1>;
 			qcom,default-topology-index = <0>;
 		};
 	};

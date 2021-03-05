@@ -174,7 +174,6 @@ enum esd_check_status_mode {
 
 struct drm_panel_esd_config {
 	bool esd_enabled;
-	bool esd_aod_enabled;
 
 	enum esd_check_status_mode status_mode;
 	struct dsi_panel_cmd_set offset_cmd;
@@ -264,7 +263,7 @@ struct dsi_panel {
 	bool dc_enable;
 	bool backlight_pulse_flag; /* true = 4 pulse and false = 1 pulse */
 	u32 dc_threshold;
-	u32 dc_type;
+	bool k6_dc_flag;
 
 	bool hbm_enabled;
 	bool thermal_hbm_disabled;
