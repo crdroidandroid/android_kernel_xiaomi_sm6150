@@ -662,6 +662,7 @@ static void pmic_gpio_config_dbg_show(struct pinctrl_dev *pctldev,
 	pad = pctldev->desc->pins[pin].drv_data;
 
 	seq_printf(s, " gpio%-2d:", pad->gpio_idx);
+
 	val = pmic_gpio_read(state, pad, PMIC_GPIO_REG_EN_CTL);
 
 	if (val < 0 || !(val >> PMIC_GPIO_REG_MASTER_EN_SHIFT)) {
