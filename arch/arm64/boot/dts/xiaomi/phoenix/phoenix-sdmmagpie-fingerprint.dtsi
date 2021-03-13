@@ -28,6 +28,7 @@
         pinctrl-0 = <&msm_gpio_58>;
         pinctrl-1 = <&msm_gpio_58_output_high>;
         pinctrl-2 = <&msm_gpio_57>;
+		fpc,enable-wakeup;
     };
 };
 
