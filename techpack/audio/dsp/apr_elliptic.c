@@ -142,7 +142,7 @@ static int afe_set_parameter(int port,
 	}
 	ret = wait_event_timeout(elus_afe.ptr_wait[index],
 		(atomic_read(elus_afe.ptr_state) == 0),
-		msecs_to_jiffies(elus_afe.timeout_ms*10));
+		msecs_to_jiffies(elus_afe.timeout_ms));
 	if (!ret) {
 		pr_err("%s: wait_event timeout\n", __func__);
 		ret = -EINVAL;
@@ -167,7 +167,7 @@ int32_t ultrasound_apr_set_parameter(int32_t port_id, uint32_t param_id,
 	u8 *user_params, int32_t length) {
 
 	int32_t  ret = 0;
-	uint32_t module_id;
+	uint32_t module_id = 0;
 
 	pr_err("%s: port_id %x, param_id %x, module_id %x\n",
 			__func__, port_id, param_id, module_id);

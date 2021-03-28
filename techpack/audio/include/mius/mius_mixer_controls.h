@@ -15,6 +15,7 @@
 
 #define MIUS_SYSTEM_CONFIGURATION_SIZE		96
 #define MIUS_CALIBRATION_DATA_SIZE          64
+#define MIUS_CALIBRATION_FLOAT_DATA_SIZE    56
 #define MIUS_CALIBRATION_V2_DATA_SIZE      448
 #define MIUS_DIAGNOSTICS_DATA_SIZE         448
 #define MIUS_DIAGNOSTICS_U32_DATA_VALUES   (MIUS_DIAGNOSTICS_DATA_SIZE>>2)
@@ -26,11 +27,16 @@
 #define MIUS_TAG_INFO_SIZE                  32
 #define MIUS_ML_DATA_SIZE				   432
 
-#define MIUS_ULTRASOUND_DISABLE				0
-#define MIUS_ULTRASOUND_ENABLE				1
-#define MIUS_ULTRASOUND_SET_PARAMS			2
-#define MIUS_ULTRASOUND_GET_PARAMS			3
-#define MIUS_ULTRASOUND_RAMP_DOWN			4
+#define MIUS_ULTRASOUND_DISABLE             0
+#define MIUS_ULTRASOUND_ENABLE              1
+#define MIUS_ULTRASOUND_SET_PARAMS          2
+#define MIUS_ULTRASOUND_GET_PARAMS          3
+#define MIUS_ULTRASOUND_DEBUG_LEVEL         4
+#define MIUS_ULTRASOUND_RAMP_DOWN           5
+#define MIUS_ULTRASOUND_SUSPEND             6
+#define MIUS_ULTRASOUND_CL_DATA             7
+#define MIUS_ULTRASOUND_MODE                8
+#define MIUS_ULTRASOUND_UPLOAD_NONE        9
 
 /** register */
 #define MIUS_CALIBRATION				1
@@ -80,6 +86,8 @@
 #define MIUS_SYSTEM_CONFIGURATION_CONTEXT 30
 #define MIUS_SYSTEM_CONFIGURATION_CAPTURE 31
 #define MIUS_SYSTEM_CONFIGURATION_INPUT_CHANNELS 32
+#define MIUS_SYSTEM_CONFIGURATION_REPORT_NONE 33
+#define MIUS_SYSTEM_CONFIGURATION_RX_DEVICE 34
 
 #define MIUS_SYSTEM_CONFIGURATION_MAX_CONTEXT_VALUE 0x7FFFFFFF
 
@@ -149,6 +157,7 @@ enum mius_system_configuration_parameter_type {
 	MSC_CONTEXT,
 	MSC_CAPTURE,
 	MSC_INPUT_CHANNELS,
+	MSC_RX_DEVICE
 };
 
 struct mius_system_configuration_parameters_cache {
@@ -175,6 +184,7 @@ struct mius_system_configuration_parameters_cache {
 	int32_t context;
 	int32_t capture;
 	int32_t input_channels;
+	int32_t rx_device;
 };
 
 
