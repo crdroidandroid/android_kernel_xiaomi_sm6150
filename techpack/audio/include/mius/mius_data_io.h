@@ -1,6 +1,6 @@
 /**
 * Copyright MI 2015-2016
-* Copyright (C) 2019 XiaoMi, Inc.
+* Copyright (C) 2021 XiaoMi, Inc.
 *
 */
 
@@ -32,11 +32,16 @@
 #define ULTRASOUND_TX_PORT_ID  1
 
 /* MI UltraSound Module */
-#define MIUS_ULTRASOUND_DISABLE         0
-#define MIUS_ULTRASOUND_ENABLE          1
+#define MIUS_ULTRASOUND_DISABLE             0
+#define MIUS_ULTRASOUND_ENABLE              1
 #define MIUS_ULTRASOUND_SET_PARAMS          2
 #define MIUS_ULTRASOUND_GET_PARAMS          3
-#define MIUS_ULTRASOUND_RAMP_DOWN           4
+#define MIUS_ULTRASOUND_DEBUG_LEVEL         4
+#define MIUS_ULTRASOUND_RAMP_DOWN           5
+#define MIUS_ULTRASOUND_SUSPEND             6
+#define MIUS_ULTRASOUND_CL_DATA             7
+#define MIUS_ULTRASOUND_MODE                8
+#define MIUS_ULTRASOUND_UPLOAD_NONE        9
 
 /** Param ID definition */
 #define MIUS_ULTRASOUND_PARAM_ID_ENGINE_DATA           3
