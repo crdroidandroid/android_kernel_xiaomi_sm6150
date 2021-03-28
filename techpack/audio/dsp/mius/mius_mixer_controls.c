@@ -51,6 +51,7 @@ struct mius_system_configuration_parameter {
 		int32_t context;
 		int32_t capture;
 		int32_t input_channels;
+		int32_t rx_device;
 	};
 };
 
@@ -59,6 +60,14 @@ struct mius_system_configuration_parameters_cache
 
 static struct mius_engine_version_info
 		mius_engine_version_cache = { 0xde, 0xad, 0xbe, 0xef };
+
+struct mius_ultrasound_calibration_data {
+	uint8_t  data[MIUS_CALIBRATION_FLOAT_DATA_SIZE];
+};
+
+static struct mius_ultrasound_calibration_data
+		mius_ultrasound_calibration_data_cache;
+
 
 struct mius_engine_calibration_data {
 	union {
@@ -247,7 +256,8 @@ static const size_t NUM_SHARED_RW_OBJS =
 	sizeof(shared_data_blocks) / sizeof(struct mius_shared_data_block);
 
 struct mius_shared_data_block *mius_get_shared_obj(uint32_t
-	object_id) {
+	object_id)
+{
 
 	size_t i;
 
@@ -328,22 +338,106 @@ int mius_ultrasound_enable_get(struct snd_kcontrol *kcontrol,
 int mius_ultrasound_enable_set(struct snd_kcontrol *kcontrol,
 					  struct snd_ctl_elem_value *ucontrol)
 {
-	static bool triggered_engine_info;
 	int32_t msg[4] = {0, 0, 0, 0};
 
 	ultrasound_enable_cache = ucontrol->value.integer.value[0];
 
-	if (!triggered_engine_info && ultrasound_enable_cache) {
-		triggered_engine_info = true;
-		mius_trigger_version_msg();
-		mius_trigger_branch_msg();
-		mius_trigger_tag_msg();
-	}
-
 	msg[0] = ultrasound_enable_cache ? 1 : 0;
 
 	return mius_data_write(
-		MIUS_ULTRASOUND_SET_PARAMS,
+		MIUS_ULTRASOUND_ENABLE,
+		(const char *)msg, sizeof(msg));
+}
+
+static uint32_t ultrasound_suspend_cache;
+
+int mius_ultrasound_suspend_get(struct snd_kcontrol *kcontrol,
+					  struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = ultrasound_suspend_cache;
+	return 0;
+}
+
+int mius_ultrasound_suspend_set(struct snd_kcontrol *kcontrol,
+					  struct snd_ctl_elem_value *ucontrol)
+{
+	int32_t msg[4] = {0, 0, 0, 0};
+
+	ultrasound_suspend_cache = ucontrol->value.integer.value[0];
+
+	msg[0] = ultrasound_suspend_cache ? 1 : 0;
+
+	return mius_data_write(
+		MIUS_ULTRASOUND_SUSPEND,
+		(const char *)msg, sizeof(msg));
+}
+
+static uint32_t ultrasound_report_none_cache;
+
+int mius_ultrasound_report_none_get(struct snd_kcontrol *kcontrol,
+					  struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = ultrasound_report_none_cache;
+	return 0;
+}
+
+int mius_ultrasound_report_none_set(struct snd_kcontrol *kcontrol,
+					  struct snd_ctl_elem_value *ucontrol)
+{
+	int32_t msg[4] = {0, 0, 0, 0};
+
+	ultrasound_report_none_cache = ucontrol->value.integer.value[0];
+
+	msg[0] = ultrasound_report_none_cache ? 1 : 0;
+
+	return mius_data_write(
+		MIUS_ULTRASOUND_UPLOAD_NONE,
+		(const char *)msg, sizeof(msg));
+}
+
+static uint32_t ultrasound_log_level_cache;
+
+int mius_ultrasound_log_level_get(struct snd_kcontrol *kcontrol,
+					  struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = ultrasound_log_level_cache;
+	return 0;
+}
+
+int mius_ultrasound_log_level_set(struct snd_kcontrol *kcontrol,
+					  struct snd_ctl_elem_value *ucontrol)
+{
+	int32_t msg[4] = {0, 0, 0, 0};
+
+	ultrasound_log_level_cache = ucontrol->value.integer.value[0];
+
+	msg[0] = ultrasound_log_level_cache;
+
+	return mius_data_write(
+		MIUS_ULTRASOUND_DEBUG_LEVEL,
+		(const char *)msg, sizeof(msg));
+}
+
+static uint32_t ultrasound_mode_cache;
+
+int mius_ultrasound_mode_get(struct snd_kcontrol *kcontrol,
+					  struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = ultrasound_mode_cache;
+	return 0;
+}
+
+int mius_ultrasound_mode_set(struct snd_kcontrol *kcontrol,
+					  struct snd_ctl_elem_value *ucontrol)
+{
+	int32_t msg[4] = {0, 0, 0, 0};
+
+	ultrasound_mode_cache = ucontrol->value.integer.value[0];
+
+	msg[0] = ultrasound_mode_cache;
+
+	return mius_data_write(
+		MIUS_ULTRASOUND_MODE,
 		(const char *)msg, sizeof(msg));
 }
 
@@ -423,12 +517,12 @@ int mius_ultrasound_rampdown_get(struct snd_kcontrol *kcontrol,
 int mius_ultrasound_rampdown_set(struct snd_kcontrol *kcontrol,
 					struct snd_ctl_elem_value *ucontrol)
 {
-	int32_t msg[4] = {-1, 0, 0, 0};
+	int32_t msg[2] = {1, 0};
 
 	if (ucontrol->value.integer.value[0] == 0)
 		return 0;
 
-	return mius_data_write(MIUS_ULTRASOUND_SET_PARAMS,
+	return mius_data_write(MIUS_ULTRASOUND_RAMP_DOWN,
 		(const char *)msg, sizeof(msg));
 }
 
@@ -483,12 +577,12 @@ int mius_calibration_data_get(struct snd_kcontrol *kcontrol,
 int mius_calibration_data_put(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
-	memcpy(&mius_engine_calibration_data_cache,
-		ucontrol->value.bytes.data, MIUS_CALIBRATION_DATA_SIZE);
+	memcpy(mius_ultrasound_calibration_data_cache.data,
+		ucontrol->value.bytes.data, MIUS_CALIBRATION_FLOAT_DATA_SIZE);
 
-	return mius_data_write(MIUS_ULTRASOUND_SET_PARAMS,
-			(const char *)&mius_engine_calibration_data_cache,
-			MIUS_CALIBRATION_DATA_SIZE);
+	return mius_data_write(MIUS_ULTRASOUND_CL_DATA,
+		(const char *)&mius_ultrasound_calibration_data_cache,
+		sizeof(mius_ultrasound_calibration_data_cache));
 }
 
 int mius_calibration_v2_data_get(struct snd_kcontrol *kcontrol,
@@ -792,6 +886,10 @@ int mius_system_configuration_param_get(
 		ucontrol->value.integer.value[0] =
 			mius_system_configuration_cache.input_channels;
 		break;
+	case MIUS_SYSTEM_CONFIGURATION_RX_DEVICE:
+		ucontrol->value.integer.value[0] =
+			mius_system_configuration_cache.rx_device;
+		break;
 
 	default:
 		MI_PRINT_E("Invalid mixer control");
@@ -959,6 +1057,13 @@ int mius_system_configuration_param_put(
 		param.context =
 		mius_system_configuration_cache.input_channels;
 		break;
+	case MIUS_SYSTEM_CONFIGURATION_RX_DEVICE:
+		mius_system_configuration_cache.rx_device =
+			ucontrol->value.integer.value[0];
+		param.type = MSC_RX_DEVICE;
+		param.rx_device =
+		mius_system_configuration_cache.rx_device;
+		break;
 
 	default:
 		return -EINVAL;
@@ -1012,8 +1117,8 @@ static const struct snd_kcontrol_new ultrasound_filter_mixer_controls[] = {
 	MIUS_SYSTEM_CONFIGURATION_OPERATION_MODE,
 	255,
 	0,
-	mius_system_configuration_param_get,
-	mius_system_configuration_param_put),
+	mius_ultrasound_mode_get,
+	mius_ultrasound_mode_set),
 	SOC_SINGLE_EXT("Mi_Ultrasound Mode Flags",
 	MIUS_SYSTEM_CONFIGURATION,
 	MIUS_SYSTEM_CONFIGURATION_OPERATION_MODE_FLAGS,
@@ -1049,7 +1154,7 @@ static const struct snd_kcontrol_new ultrasound_filter_mixer_controls[] = {
 	mius_system_configuration_get,
 	mius_system_configuration_put),
 	SND_SOC_BYTES_EXT("Mi_Ultrasound Calibration Data",
-	MIUS_CALIBRATION_DATA_SIZE,
+	MIUS_CALIBRATION_FLOAT_DATA_SIZE,
 	mius_calibration_data_get,
 	mius_calibration_data_put),
 	SND_SOC_BYTES_EXT("Mi_Ultrasound Version",
@@ -1067,10 +1172,10 @@ static const struct snd_kcontrol_new ultrasound_filter_mixer_controls[] = {
 	SOC_SINGLE_EXT("Mi_Ultrasound Log Level",
 	MIUS_SYSTEM_CONFIGURATION,
 	MIUS_SYSTEM_CONFIGURATION_LOG_LEVEL,
-	7,
+	5,
 	0,
-	mius_system_configuration_param_get,
-	mius_system_configuration_param_put),
+	mius_ultrasound_log_level_get,
+	mius_ultrasound_log_level_set),
 
 	SND_SOC_BYTES_EXT("Mi_Ultrasound Calibration Ext Data",
 	MIUS_CALIBRATION_V2_DATA_SIZE,
@@ -1212,8 +1317,15 @@ static const struct snd_kcontrol_new ultrasound_filter_mixer_controls[] = {
 	MIUS_SYSTEM_CONFIGURATION_SUSPEND,
 	1,
 	0,
-	mius_system_configuration_param_get,
-	mius_system_configuration_param_put),
+	mius_ultrasound_suspend_get,
+	mius_ultrasound_suspend_set),
+	SOC_SINGLE_EXT("Mi_Ultrasound ReportNone",
+	MIUS_SYSTEM_CONFIGURATION,
+	MIUS_SYSTEM_CONFIGURATION_REPORT_NONE,
+	1,
+	0,
+	mius_ultrasound_report_none_get,
+	mius_ultrasound_report_none_set),
 	SOC_SINGLE_EXT("Mi_Ultrasound Input",
 	MIUS_SYSTEM_CONFIGURATION,
 	MIUS_SYSTEM_CONFIGURATION_INPUT_ENABLED,
@@ -1279,6 +1391,13 @@ static const struct snd_kcontrol_new ultrasound_filter_mixer_controls[] = {
 	MIUS_SYSTEM_CONFIGURATION,
 	MIUS_SYSTEM_CONFIGURATION_INPUT_CHANNELS,
 	16,
+	0,
+	mius_system_configuration_param_get,
+	mius_system_configuration_param_put),
+	SOC_SINGLE_EXT("Mi_Ultrasound Rx Device",
+	MIUS_SYSTEM_CONFIGURATION,
+	MIUS_SYSTEM_CONFIGURATION_RX_DEVICE,
+	5,
 	0,
 	mius_system_configuration_param_get,
 	mius_system_configuration_param_put),
