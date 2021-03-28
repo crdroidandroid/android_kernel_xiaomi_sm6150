@@ -1,6 +1,6 @@
 /**
 * Copyright MI
-* Copyright (C) 2019 XiaoMi, Inc.
+* Copyright (C) 2021 XiaoMi, Inc.
 *
 */
 /* #define DEBUG */
@@ -664,25 +664,24 @@ static char *calibration_filename = "/persist/audio/mius_calibration";
 /* function to load the calibration from a file (if possible) */
 static size_t load_calibration_data(char *filename)
 {
-	size_t ret = 0;
-	int fd;
+	size_t bytes_read = 0;
+	int rc = -ENOENT;
 
-	mm_segment_t old_fs = get_fs();
-
-	set_fs(KERNEL_DS);
-
-	fd = sys_open(filename, O_RDONLY, 0);
-	if (fd >= 0) {
-		size_t bytes_read = sys_read(fd, calibration_data, MIUS_CALIBRATION_MAX_DATA_SIZE);
-
-		if (bytes_read == MIUS_CALIBRATION_DATA_SIZE ||
-			bytes_read == MIUS_CALIBRATION_V2_DATA_SIZE) {
-			ret = bytes_read;
-		}
-		sys_close(fd);
+	rc = kernel_read_file_from_path(filename, calibration_data, &bytes_read,
+					MIUS_CALIBRATION_MAX_DATA_SIZE,
+					READING_FIRMWARE);
+	if (rc) {
+		if (rc == -ENOENT)
+			MI_PRINT_E("loading %s failed with error %d\n",
+				filename, rc);
+		else
+			MI_PRINT_E("loading %s failed with error %d\n",
+				filename, rc);
 	}
-	set_fs(old_fs);
-	return ret;
+	MI_PRINT_I("loading %s\n", filename);
+
+
+	return bytes_read;
 }
 
 static int32_t mius_send_calibration_to_engine(size_t calib_data_size)
