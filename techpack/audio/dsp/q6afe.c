@@ -258,6 +258,7 @@ done:
 	return topology;
 }
 
+EXPORT_SYMBOL(afe_get_topology);
 /**
  * afe_set_aanc_info -
  *        Update AFE AANC info
@@ -367,11 +368,6 @@ static int32_t sp_make_afe_callback(uint32_t opcode, uint32_t *payload,
 	/* Set command specific details */
 	switch (opcode) {
 	case AFE_PORT_CMDRSP_GET_PARAM_V2:
-		if (payload_size < (5 * sizeof(uint32_t))) {
-			pr_err("%s: Error: size %d is less than expected\n",
-				__func__, payload_size);
-			return -EINVAL;
-		}
 		expected_size += sizeof(struct param_hdr_v1);
 		param_hdr.module_id = payload[1];
 		param_hdr.instance_id = INSTANCE_ID_0;
@@ -380,11 +376,6 @@ static int32_t sp_make_afe_callback(uint32_t opcode, uint32_t *payload,
 		data_start = &payload[4];
 		break;
 	case AFE_PORT_CMDRSP_GET_PARAM_V3:
-		if (payload_size < (6 * sizeof(uint32_t))) {
-			pr_err("%s: Error: size %d is less than expected\n",
-				__func__, payload_size);
-			return -EINVAL;
-		}
 		expected_size += sizeof(struct param_hdr_v3);
 		memcpy(&param_hdr, &payload[1], sizeof(struct param_hdr_v3));
 		data_start = &payload[5];
@@ -574,7 +565,6 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 	    data->opcode == AFE_PORT_CMDRSP_GET_PARAM_V3) {
 		uint32_t *payload = data->payload;
 		uint32_t param_id;
-		uint32_t param_id_pos = 0;
 
 		if (!payload || (data->token >= AFE_MAX_PORTS)) {
 			pr_err("%s: Error: size %d payload %pK token %d\n",
@@ -582,23 +572,13 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 				payload, data->token);
 			return -EINVAL;
 		}
-
 		if (rtac_make_afe_callback(data->payload,
 					   data->payload_size))
 			return 0;
 
-		if (data->opcode == AFE_PORT_CMDRSP_GET_PARAM_V3)
-			param_id_pos = 4;
-		else
-			param_id_pos = 3;
-
-		if (data->payload_size >= param_id_pos * sizeof(uint32_t))
-				param_id = payload[param_id_pos - 1];
-		else {
-			pr_err("%s: Error: size %d is less than expected\n",
-				__func__, data->payload_size);
-			return -EINVAL;
-		}
+		param_id = (data->opcode == AFE_PORT_CMDRSP_GET_PARAM_V3) ?
+					payload[3] :
+					payload[2];
 
 		if (param_id == AFE_PARAM_ID_DEV_TIMING_STATS) {
 			av_dev_drift_afe_cb_handler(data->opcode, data->payload,
@@ -625,6 +605,16 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 			wake_up(&this_afe.wait[data->token]);
 		else
 			return -EINVAL;
+/* for mius start */
+#ifdef CONFIG_US_PROXIMITY
+	} else if (data->opcode == MI_ULTRASOUND_OPCODE) {
+		if (NULL != data->payload) {
+			printk(KERN_DEBUG "[MIUS] mi ultrasound afe afe cb");
+			mius_process_apr_payload(data->payload);
+		} else
+			pr_err("[EXPORT_SYMBOLLUS]: payload ptr is Invalid");
+#endif
+/* for mius end */
 	} else if (data->opcode == AFE_EVENT_MBHC_DETECTION_SW_WA) {
 		msm_aud_evt_notifier_call_chain(SWR_WAKE_IRQ_EVENT, NULL);
 	} else if (data->opcode ==
@@ -644,28 +634,12 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 		else
 			pr_err("[EXPORT_SYMBOLLUS]: payload ptr is Invalid");
 #endif
-/* for mius start */
-#ifdef CONFIG_US_PROXIMITY
-	} else if (data->opcode == MI_ULTRASOUND_OPCODE) {
-		if (NULL != data->payload)
-		{
-			printk(KERN_DEBUG "[MIUS] mi ultrasound afe afe cb");
-			mius_process_apr_payload(data->payload);
-		}
-		else
-			pr_err("[EXPORT_SYMBOLLUS]: payload ptr is Invalid");
-#endif
 	} else if (data->payload_size) {
 		uint32_t *payload;
 		uint16_t port_id = 0;
 
 		payload = data->payload;
 		if (data->opcode == APR_BASIC_RSP_RESULT) {
-			if (data->payload_size < (2 * sizeof(uint32_t))) {
-				pr_err("%s: Error: size %d is less than expected\n",
-					__func__, data->payload_size);
-				return -EINVAL;
-			}
 			pr_debug("%s:opcode = 0x%x cmd = 0x%x status = 0x%x token=%d\n",
 				__func__, data->opcode,
 				payload[0], payload[1], data->token);
@@ -1804,16 +1778,19 @@ afe_ultrasound_state_t elus_afe = {
 };
 EXPORT_SYMBOL(elus_afe);
 #endif
+
+/* for mius start */
 #ifdef CONFIG_US_PROXIMITY
 afe_mi_ultrasound_state_t mius_afe = {
-	.ptr_apr= &this_afe.apr,
-	.ptr_status= &this_afe.status,
-	.ptr_state= &this_afe.state,
-	.ptr_wait= this_afe.wait,
-	.timeout_ms= TIMEOUT_MS,
+	.ptr_apr = &this_afe.apr,
+	.ptr_status = &this_afe.status,
+	.ptr_state = &this_afe.state,
+	.ptr_wait = this_afe.wait,
+	.timeout_ms = TIMEOUT_MS,
 };
 EXPORT_SYMBOL(mius_afe);
 #endif
+/* for mius end */
 
 static void afe_send_cal_spkr_prot_tx(int port_id)
 {
@@ -2637,6 +2614,7 @@ done:
 	kfree(packed_param_data);
 	return ret;
 }
+
 
 static int afe_init_cdc_reg_config(void)
 {
@@ -8059,11 +8037,7 @@ static int afe_set_cal_sp_th_vi_cfg(int32_t cal_type, size_t data_size,
 	uint32_t mode;
 
 	if (cal_data == NULL ||
-#if !((defined CONFIG_MACH_XIAOMI_F10) || (defined CONFIG_MACH_XIAOMI_G7B))
 	    data_size > sizeof(*cal_data) ||
-#else
-	    data_size != sizeof(*cal_data) ||
-#endif
 	    this_afe.cal_data[AFE_FB_SPKR_PROT_TH_VI_CAL] == NULL)
 		goto done;
 
@@ -8207,11 +8181,7 @@ static int afe_get_cal_sp_th_vi_param(int32_t cal_type, size_t data_size,
 	int ret = 0;
 
 	if (cal_data == NULL ||
-#ifdef CONFIG_MACH_XIAOMI_SDMMAGPIE
-	    data_size != sizeof(*cal_data) ||
-#else
 	    data_size > sizeof(*cal_data) ||
-#endif
 	    this_afe.cal_data[AFE_FB_SPKR_PROT_TH_VI_CAL] == NULL)
 		return 0;
 
