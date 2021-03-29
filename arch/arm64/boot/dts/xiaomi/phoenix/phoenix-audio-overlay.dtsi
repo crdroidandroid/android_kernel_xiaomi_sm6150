@@ -29,5 +29,8 @@
 };
 
 &wcd937x_codec {
+    compatible = "qcom,wcd937x-codec";
+    qcom,cdc-micbias1-mv = <2750>;
     qcom,cdc-micbias2-mv = <2750>;
+    qcom,cdc-micbias3-mv = <2750>;
 };
