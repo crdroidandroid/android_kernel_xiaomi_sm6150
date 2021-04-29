@@ -20,4 +20,5 @@ obj-$(CONFIG_NFC_ST95HF)	+= st95hf/
 obj-$(CONFIG_NFC_MAX32560)	+= max32560/
 obj-$(CONFIG_NXP_NFC_I2C)	+= sn-nci/
 obj-$(CONFIG_NFC_NQ)		+= nq-nci.o
+obj-$(CONFIG_NFC_NQ_PN80T)	+= nq-nci-pn80t.o
 obj-$(CONFIG_NTAG_NQ)		+= nq-ntag.o
