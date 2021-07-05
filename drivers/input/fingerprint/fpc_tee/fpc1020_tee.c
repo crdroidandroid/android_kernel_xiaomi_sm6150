@@ -39,10 +39,12 @@
 #include <linux/regulator/consumer.h>
 #include <linux/pm_wakeup.h>
 #include <linux/fb.h>
+#include <drm/drm_bridge.h>
 #include <linux/msm_drm_notify.h>
 
 #define FPC_GPIO_NO_DEFAULT -1
 #define FPC_TTW_HOLD_TIME 2000
+#define FP_UNLOCK_REJECTION_TIMEOUT (FPC_TTW_HOLD_TIME - 500)
 
 #define RESET_LOW_SLEEP_MIN_US 5000
 #define RESET_LOW_SLEEP_MAX_US (RESET_LOW_SLEEP_MIN_US + 100)
@@ -104,7 +106,9 @@ struct fpc1020_data {
 	atomic_t wakeup_enabled; /* Used both in ISR and non-ISR */
 	int irqf;
 	struct notifier_block fb_notifier;
+	bool fb_black;
 	bool wait_finger_down;
+	struct work_struct work;
 };
 
 
@@ -760,6 +764,12 @@ static const struct attribute_group attribute_group = {
 	.attrs = attributes,
 };
 
+static void notification_work(struct work_struct *work)
+{
+	pr_info("%s: unblank\n", __func__);
+	dsi_bridge_interface_enable(FP_UNLOCK_REJECTION_TIMEOUT);
+}
+
 static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 {
 	struct fpc1020_data *fpc1020 = handle;
@@ -774,6 +784,11 @@ static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 	mutex_unlock(&fpc1020->lock);
 
 	sysfs_notify(&fpc1020->dev->kobj, NULL, dev_attr_irq.attr.name);
+	if (fpc1020->wait_finger_down && fpc1020->fb_black && fpc1020->prepared) {
+		pr_info("%s enter fingerdown & fb_black then schedule_work\n", __func__);
+		fpc1020->wait_finger_down = false;
+		schedule_work(&fpc1020->work);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -826,8 +841,10 @@ static int fpc_fb_notif_callback(struct notifier_block *nb,
 		blank = *(int *)(evdata->data);
 		switch (blank) {
 		case MSM_DRM_BLANK_POWERDOWN:
+			fpc1020->fb_black = true;
 			break;
 		case MSM_DRM_BLANK_UNBLANK:
+			fpc1020->fb_black = false;
 			break;
 		default:
 			pr_debug("%s defalut\n", __func__);
@@ -929,7 +946,9 @@ static int fpc1020_probe(struct platform_device *pdev)
 		(void)device_prepare(fpc1020, true);
 	}
 
+	fpc1020->fb_black = false;
 	fpc1020->wait_finger_down = false;
+	INIT_WORK(&fpc1020->work, notification_work);
 	fpc1020->fb_notifier = fpc_notif_block;
 	msm_drm_register_client(&fpc1020->fb_notifier);
 
