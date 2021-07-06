@@ -5090,7 +5090,13 @@ static ssize_t sysfs_doze_status_write(struct device *dev,
 	panel = display->panel;
 
 	mutex_lock(&panel->panel_lock);
+
+	if (!dsi_panel_initialized(panel))
+		goto error;
+
 	dsi_panel_set_doze_status(panel, status);
+
+error:
 	mutex_unlock(&panel->panel_lock);
 
 	return count;
@@ -5112,7 +5118,13 @@ static ssize_t sysfs_doze_mode_read(struct device *dev,
 	panel = display->panel;
 
 	mutex_lock(&panel->panel_lock);
+
+	if (!dsi_panel_initialized(panel))
+		goto error;
+
 	doze_mode = panel->doze_mode;
+
+error:
 	mutex_unlock(&panel->panel_lock);
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", doze_mode);
