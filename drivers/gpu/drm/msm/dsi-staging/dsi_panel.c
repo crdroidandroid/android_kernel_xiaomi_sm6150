@@ -6183,14 +6183,11 @@ int dsi_panel_post_switch(struct dsi_panel *panel)
 int dsi_panel_enable(struct dsi_panel *panel)
 {
 	int rc = 0;
-	u32 count = 0;
 
 	if (!panel) {
 		pr_err("Invalid params\n");
 		return -EINVAL;
 	}
-
-	count = panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_DISP_BC_120HZ].count;
 
 	mutex_lock(&panel->panel_lock);
 
@@ -6200,6 +6197,40 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		       panel->name, rc);
 	else
 		panel->panel_initialized = true;
+
+	panel->hbm_enabled = false;
+	panel->fod_hbm_enabled = false;
+	panel->fod_dimlayer_hbm_enabled = false;
+	panel->in_aod = false;
+	panel->backlight_pulse_flag = false;
+	panel->backlight_demura_level = 0;
+	panel->skip_dimmingon = STATE_NONE;
+	idle_status = false;
+
+	mutex_unlock(&panel->panel_lock);
+	pr_info("[SDE] %s: DSI_CMD_SET_ON\n", __func__);
+	return rc;
+}
+
+int dsi_panel_post_enable(struct dsi_panel *panel)
+{
+	int rc = 0;
+	u32 count;
+
+	if (!panel) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+	}
+	count = panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_DISP_BC_120HZ].count;
+
+	mutex_lock(&panel->panel_lock);
+
+	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_POST_ON);
+	if (rc) {
+		pr_err("[%s] failed to send DSI_CMD_SET_POST_ON cmds, rc=%d\n",
+		       panel->name, rc);
+		goto error;
+	}
 
 	if (count && (panel->cur_mode->timing.refresh_rate == 120)) {
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_BC_120HZ);
@@ -6222,37 +6253,6 @@ int dsi_panel_enable(struct dsi_panel *panel)
 					panel->name, rc);
 	}
 
-	panel->hbm_enabled = false;
-	panel->fod_hbm_enabled = false;
-	panel->fod_dimlayer_hbm_enabled = false;
-	panel->in_aod = false;
-	panel->backlight_pulse_flag = false;
-	panel->backlight_demura_level = 0;
-	panel->skip_dimmingon = STATE_NONE;
-	idle_status = false;
-
-	mutex_unlock(&panel->panel_lock);
-	pr_info("[SDE] %s: DSI_CMD_SET_ON\n", __func__);
-	return rc;
-}
-
-int dsi_panel_post_enable(struct dsi_panel *panel)
-{
-	int rc = 0;
-
-	if (!panel) {
-		pr_err("invalid params\n");
-		return -EINVAL;
-	}
-
-	mutex_lock(&panel->panel_lock);
-
-	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_POST_ON);
-	if (rc) {
-		pr_err("[%s] failed to send DSI_CMD_SET_POST_ON cmds, rc=%d\n",
-		       panel->name, rc);
-		goto error;
-	}
 error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
