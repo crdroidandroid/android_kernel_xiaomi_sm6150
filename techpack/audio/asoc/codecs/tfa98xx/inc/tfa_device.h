@@ -1,11 +1,20 @@
 /*
- * Copyright (C) 2014 NXP Semiconductors, All Rights Reserved.
+ * Copyright 2014-2017 NXP Semiconductors
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+
 
 /**\file
  *
@@ -177,11 +186,9 @@ int tfa_dev_probe(int slave, struct tfa_device *tfa);
  *  @param vstep the selected vstep to use
  *  @return tfa_error enum
  */
-#ifdef __KERNEL__
+
 enum tfa_error tfa_dev_start(struct tfa_device *tfa, int next_profile, int vstep, u8 pcm_format);
-#else
-enum tfa_error tfa_dev_start(struct tfa_device *tfa, int next_profile, int vstep);
-#endif
+
 
 /**
  * Stop audio for this instance as gracefully as possible.
@@ -215,7 +222,7 @@ enum tfa_error tfa_dev_stop(struct tfa_device *tfa);
  *  @param state struct = desired device state after function return
  *  @return tfa_error enum
  */
-enum tfa_error tfa_dev_set_state(struct tfa_device *tfa, enum tfa_state state,int is_calibration);
+enum tfa_error tfa_dev_set_state(struct tfa_device *tfa, enum tfa_state state, int is_calibration);
 
 /**
  * Retrieve the current state of this instance in an active way.
