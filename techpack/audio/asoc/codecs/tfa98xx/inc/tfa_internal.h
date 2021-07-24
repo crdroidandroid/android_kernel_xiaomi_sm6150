@@ -16,27 +16,25 @@
  */
 
 /*
-	Linux kernel specific definitions used by code shared with
-	Linux/Windows user space.
+	internal functions for TFA layer (not shared with SRV and HAL layer!)
 */
 
-#ifndef __CONFIG_LINUX_KERNEL_INC__
-#define __CONFIG_LINUX_KERNEL_INC__
+#ifndef __TFA_INTERNAL_H__
+#define __TFA_INTERNAL_H__
 
-#include <linux/ctype.h>
-#include <linux/delay.h>
-#include <linux/slab.h>
-#include <linux/crc32.h>
-#include <linux/ftrace.h>
+#include "tfa_dsp_fw.h"
+#include "tfa_ext.h"
 
-#define _ASSERT(e)
-#define PRINT_ASSERT(e)if ((e)) printk(KERN_ERR "PrintAssert:%s (%s:%d) error code:%d\n",__FUNCTION__,__FILE__,__LINE__, e)
-
-#if defined(CONFIG_TRACING) && defined(DEBUG)
-	#define tfa98xx_trace_printk(...) trace_printk(__VA_ARGS__)
+#if __GNUC__ >= 4
+  #define TFA_INTERNAL __attribute__ ((visibility ("hidden")))
 #else
-	#define tfa98xx_trace_printk(...)
+  #define TFA_INTERNAL
 #endif
 
-#endif /* __CONFIG_LINUX_KERNEL_INC__ */
+#define TFA98XX_GENERIC_SLAVE_ADDRESS 0x1C
+
+TFA_INTERNAL enum Tfa98xx_Error tfa98xx_check_rpc_status(struct tfa_device *tfa, int *pRpcStatus);
+TFA_INTERNAL enum Tfa98xx_Error tfa98xx_wait_result(struct tfa_device *tfa, int waitRetryCount);
+
+#endif /* __TFA_INTERNAL_H__ */
 
