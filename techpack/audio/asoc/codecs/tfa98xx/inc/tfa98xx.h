@@ -1,10 +1,18 @@
 /*
- * Copyright (C) 2014 NXP Semiconductors, All Rights Reserved.
+ * Copyright 2014-2017 NXP Semiconductors
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #ifndef __TFA98XX_INC__
@@ -61,35 +69,43 @@ enum tfa98xx_misc_device_id {
 	MISC_DEVICE_TFA98XX_IOCTL,
 	MISC_DEVICE_MAX
 };
+
 struct tfa98xx_miscdevice_info {
 	char devicename[255];
 	struct file_operations operations;
 };
+
 enum TFA_DEVICE_TYPE{
 	TFA_DEVICE_TYPE_9894,
 	TFA_DEVICE_TYPE_9874_PRIMARY,
 	TFA_DEVICE_TYPE_9874_SECONDARY,
 	TFA_DEVICE_TYPE_MAX
 };
+
 enum TFA_DEVICE_MUTE{
 	TFA98XX_DEVICE_MUTE_OFF = 0,
 	TFA98XX_DEVICE_MUTE_ON,
 };
+
 enum {
 	IOCTL_CMD_GET_MEMTRACK_DATA = 0,
 	IOCTL_CMD_GET_CNT_VERSION,
 };
+
 enum {
     MEMTRACK_ITEM_SPEAKER_F0 = 0,
     MEMTRACK_ITEM_SPEAKER_TEMPERATURE,
     MEMTRACK_ITEM_SPEAKER_IMPEDANCE,
     MEMTRACK_ITEM_MAX
 };
+
 struct livedata_cfg {
 	int address;
 	int track;
 	int scaler;
 };
+
+
 struct tfa98xx_firmware {
 	void			*base;
 	struct tfa98xx_device	*dev;
@@ -124,9 +140,7 @@ struct tfa98xx {
 	struct tfa98xx_firmware fw;
 	char *fw_name;
 	int rate;
-
 	u8 pcm_format;
-
 	wait_queue_head_t wq;
 	struct device *dev;
 	unsigned int init_count;
@@ -159,10 +173,12 @@ struct tfa98xx {
 	bool set_mtp_cal;
 	uint16_t cal_data;
 	enum TFA_DEVICE_MUTE tfa_mute_mode;
+
 	struct device_node *spk_id_gpio_p;
+
 	struct miscdevice tfa98xx_reg;
 	struct miscdevice tfa98xx_rw;
-	struct miscdevice tfa98xx_rpc;
+	struct miscdevice tfa98xx_rpc;	
 	struct miscdevice tfa98xx_profile;
 	struct miscdevice tfa98xx_control;
 };
