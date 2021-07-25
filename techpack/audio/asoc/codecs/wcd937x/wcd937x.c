@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1318,17 +1319,27 @@ static int wcd937x_codec_enable_adc(struct snd_soc_dapm_widget *w,
 #ifdef CONFIG_SND_SOC_FOR_ULTRASOUND_PATH
 		mutex_lock(&wcd937x->ana_tx_clk_lock);
 		wcd937x->ana_adc_count--;
-		mutex_unlock(&wcd937x->ana_tx_clk_lock);
 		dev_dbg(codec->dev, "%s SND_SOC_DAPM_POST_PMD, ana_adc_count=%d\n", __func__, wcd937x->ana_adc_count);
 		wcd937x_tx_connect_port(codec, ADC1 + (w->shift), false);
+		if (w->shift == 1 &&
+			test_bit(AMIC2_BCS_ENABLE, &wcd937x->status_mask)) {
+			wcd937x_tx_connect_port(codec, MBHC, false);
+			clear_bit(AMIC2_BCS_ENABLE, &wcd937x->status_mask);
+		}
 		if (wcd937x->ana_adc_count <= 0) {
 			wcd937x->ana_adc_count = 0;
 			dev_dbg(codec->dev, "%s SND_SOC_DAPM_POST_PMD, ana_adc_count=%d, POWER DOWN\n", __func__, wcd937x->ana_adc_count);
 			snd_soc_update_bits(codec, WCD937X_DIGITAL_CDC_ANA_CLK_CTL,
 					0x08, 0x00);
 		}
+		mutex_unlock(&wcd937x->ana_tx_clk_lock);
 #else
 		wcd937x_tx_connect_port(codec, ADC1 + (w->shift), false);
+		if (w->shift == 1 &&
+			test_bit(AMIC2_BCS_ENABLE, &wcd937x->status_mask)) {
+			wcd937x_tx_connect_port(codec, MBHC, false);
+			clear_bit(AMIC2_BCS_ENABLE, &wcd937x->status_mask);
+		}
 		snd_soc_update_bits(codec, WCD937X_DIGITAL_CDC_ANA_CLK_CTL,
 				    0x08, 0x00);
 #endif
@@ -1377,7 +1388,6 @@ static int wcd937x_enable_req(struct snd_soc_dapm_widget *w,
 #ifdef CONFIG_SND_SOC_FOR_ULTRASOUND_PATH
 		mutex_lock(&wcd937x->ana_tx_clk_lock);
 		wcd937x->ana_tx_req_count--;
-		mutex_unlock(&wcd937x->ana_tx_clk_lock);
 		dev_dbg(codec->dev, "%s SND_SOC_DAPM_POST_PMD, ana_tx_req_count=%d\n", __func__, wcd937x->ana_tx_req_count);
 		if (wcd937x->ana_tx_req_count <= 0) {
 			dev_dbg(codec->dev, "%s SND_SOC_DAPM_POST_PMD, ana_tx_req_count=%d, POWER DOWN\n", __func__, wcd937x->ana_tx_req_count);
@@ -1389,6 +1399,7 @@ static int wcd937x_enable_req(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, WCD937X_DIGITAL_CDC_DIG_CLK_CTL,
 					0x10, 0x00);
 		}
+		mutex_unlock(&wcd937x->ana_tx_clk_lock);
 #else
 		snd_soc_update_bits(codec, WCD937X_ANA_TX_CH1, 0x80, 0x00);
 		snd_soc_update_bits(codec, WCD937X_ANA_TX_CH2, 0x80, 0x00);
