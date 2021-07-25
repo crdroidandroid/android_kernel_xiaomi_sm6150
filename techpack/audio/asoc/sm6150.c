@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -664,15 +665,9 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
 	.key_code[0] = KEY_MEDIA,
-#ifdef CONFIG_MACH_XIAOMI
-	.key_code[1] = KEY_VOLUMEUP,
-	.key_code[2] = KEY_VOLUMEDOWN,
+	.key_code[1] = BTN_1,
+	.key_code[2] = BTN_2,
 	.key_code[3] = 0,
-#else
-	.key_code[1] = KEY_VOICECOMMAND,
-	.key_code[2] = KEY_VOLUMEUP,
-	.key_code[3] = KEY_VOLUMEDOWN,
-#endif
 	.key_code[4] = 0,
 	.key_code[5] = 0,
 	.key_code[6] = 0,
@@ -3495,6 +3490,17 @@ static int msm_hifi_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int usbhs_direction_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	if (wcd_mbhc_cfg.flip_switch)
+		ucontrol->value.integer.value[0] = 1;
+	else
+		ucontrol->value.integer.value[0] = 0;
+
+	return 0;
+}
+
 static const struct snd_kcontrol_new msm_int_snd_controls[] = {
 	SOC_ENUM_EXT("WSA_CDC_DMA_RX_0 Channels", wsa_cdc_dma_rx_0_chs,
 			cdc_dma_rx_ch_get, cdc_dma_rx_ch_put),
@@ -3880,6 +3886,8 @@ static const struct snd_kcontrol_new msm_common_snd_controls[] = {
 			msm_bt_sample_rate_tx_put),
 	SOC_ENUM_EXT("VI_FEED_TX Channels", vi_feed_tx_chs,
 			msm_vi_feed_tx_ch_get, msm_vi_feed_tx_ch_put),
+	SOC_SINGLE_EXT("USB Headset Direction", 0, 0, UINT_MAX, 0,
+			usbhs_direction_get, NULL),
 };
 
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
@@ -4668,6 +4676,8 @@ static bool msm_usbc_swap_gnd_mic(struct snd_soc_codec *codec, bool active)
 
 	if (!pdata->fsa_handle)
 		return false;
+
+	wcd_mbhc_cfg.flip_switch = true;
 
 	return fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
 }
@@ -6941,35 +6951,38 @@ static struct snd_soc_dai_link msm_common_misc_fe_dai_links[] = {
 #ifdef CONFIG_SND_SOC_FOR_ULTRASOUND_PATH
 static struct snd_soc_dai_link msm_common_ultrasound_dai_links[] = {
 	{/* hw:x,41 */
-		.name = "CDC_DMA Hostless_ULTRA",
-		.stream_name = "CDC_DMA Hostless_ULTRA",
-		.cpu_dai_name = "msm-dai-cdc-dma-dev.45106",
+		.name = "CDC_DMA Hostless_USRX",
+		.stream_name = "CDC_DMA Hostless_USRX",
+		.cpu_dai_name = "CDC_DMA_HOSTLESS_USRX",
 		.platform_name = "msm-pcm-hostless",
-		.codec_name = "bolero_codec",
-		.codec_dai_name = "rx_macro_rx2",
-		.id = MSM_BACKEND_DAI_RX_CDC_DMA_RX_1,
+		.dynamic = 1,
+		.dpcm_playback = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			    SND_SOC_DPCM_TRIGGER_POST},
+			SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ignore_suspend = 1,
+		/* this dailink has playback support */
 		.ignore_pmdown_time = 1,
-		.ops = &msm_cdc_dma_be_ops,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
 	},
 	{/* hw:x,42 */
-		.name = "TX3_CDC_DMA Hostless_ULTRA",
-		.stream_name = "TX3_CDC_DMA Hostless_ULTRA",
-		.cpu_dai_name = "msm-dai-cdc-dma-dev.45113",
+		.name = "CDC_DMA Hostless_USTX",
+		.stream_name = "CDC_DMA Hostless_USTX",
+		.cpu_dai_name = "CDC_DMA_HOSTLESS_USTX",
 		.platform_name = "msm-pcm-hostless",
+		.dynamic = 1,
+		.dpcm_capture = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			    SND_SOC_DPCM_TRIGGER_POST},
+			SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ignore_suspend = 1,
-		.codec_name = "bolero_codec",
-		.codec_dai_name = "tx_macro_tx2",
-		.ops = &msm_cdc_dma_be_ops,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
 	},
 };
 #endif
+
 static struct snd_soc_dai_link msm_common_be_dai_links[] = {
 	/* Backend AFE DAI Links */
 	{
