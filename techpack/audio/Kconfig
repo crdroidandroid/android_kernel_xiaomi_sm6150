@@ -1,0 +1,14 @@
+menu "Techpack audio options"
+
+config SND_SOC_AWINIC_AW882XX
+	tristate "SND_SOC_AWINIC_AW882XX"
+
+config SND_SOC_FOR_ULTRASOUND_PATH
+	tristate "SND_SOC_FOR_ULTRASOUND_PATH"
+
+config SND_SOC_TFA9874_FOR_DAVI
+	tristate "SND_SOC_TFA9874_FOR_DAVI"
+
+config TFA_NON_DSP_SOLUTION
+	tristate"TFA_NON_DSP_SOLUTION"
+endmenu

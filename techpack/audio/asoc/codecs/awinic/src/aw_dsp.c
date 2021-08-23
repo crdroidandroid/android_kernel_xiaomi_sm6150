@@ -81,9 +81,9 @@ static uint32_t afe_param_msg_id[MSG_PARAM_ID_MAX] = {
 #define AW_COPP_MODULE_ID (0X10013D02)			/*SKT module id*/
 #define AW_COPP_PARAMS_ID_AWDSP_ENABLE (0X10013D14)	/*SKT enable param id*/
 
-#define AW_QCOM_PLATFORM
-#ifdef  AW_QCOM_PLATFORM
 extern int afe_get_topology(int port_id);
+
+#ifdef CONFIG_SND_SOC_AWINIC_AW882XX
 extern int aw_send_afe_cal_apr(uint32_t param_id,
 	void *buf, int cmd_size, bool write);
 extern int aw_send_afe_rx_module_enable(void *buf, int size);
@@ -134,10 +134,6 @@ int aw_adm_param_enable(int port_id, int enable)
 	return 0;
 }
 #else
-static int afe_get_topology(int port_id)
-{
-	return -EPERM;
-}
 static int aw_send_afe_cal_apr(uint32_t param_id,
 	void *buf, int cmd_size, bool write)
 {
