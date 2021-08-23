@@ -632,7 +632,9 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 		hphrocp_off_report(mbhc, SND_JACK_OC_HPHR);
 		hphlocp_off_report(mbhc, SND_JACK_OC_HPHL);
 		mbhc->current_plug = MBHC_PLUG_TYPE_NONE;
+#ifdef CONFIG_SND_SOC_TFA9874_FOR_DAVI
 		mbhc->force_linein = false;
+#endif /*CONFIG_SND_SOC_TFA9874_FOR_DAVI*/
 	} else {
 		/*
 		 * Report removal of current jack type.
@@ -743,6 +745,7 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 			}
 		}
 
+#ifndef CONFIG_SND_SOC_TFA9874_FOR_DAVI
 		/* Do not calculate impedance again for lineout
 		 * as during playback pa is on and impedance values
 		 * will not be correct resulting in lineout detected
@@ -761,6 +764,7 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 						WCD_MBHC_JACK_MASK);
 			}
 		}
+#endif /*CONFIG_SND_SOC_TFA9874_FOR_DAVI*/
 
 		mbhc->hph_status |= jack_type;
 
