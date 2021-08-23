@@ -60,7 +60,7 @@ COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
 TFA_INC    :=   -I$(AUDIO_ROOT)/asoc/codecs/awinic/inc
 
 # for AW882XX Amplifer
-ifdef CONFIG_SND_SMARTPA_AW882XX
+ifdef CONFIG_SND_SOC_AWINIC_AW882XX
 	AW882XX_OBJS += src/aw_dsp.o
 	AW882XX_OBJS += src/aw882xx.o
 	AW882XX_OBJS += src/aw_init.o
@@ -114,5 +114,5 @@ KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/soc/Module
 endif
 
 # Module information used by KBuild framework
-obj-$(CONFIG_SND_SMARTPA_AW882XX)    += aw882xx_dlkm.o
+obj-$(CONFIG_SND_SOC_AWINIC_AW882XX)    += aw882xx_dlkm.o
 aw882xx_dlkm-y := $(AW882XX_OBJS)
