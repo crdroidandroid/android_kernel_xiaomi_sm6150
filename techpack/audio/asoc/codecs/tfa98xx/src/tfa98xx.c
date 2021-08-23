@@ -387,7 +387,7 @@ static void tfa98xx_inputdev_unregister(struct tfa98xx *tfa98xx)
 	__tfa98xx_inputdev_check_register(tfa98xx, true);
 }
 
-#ifdef TFA_NON_DSP_SOLUTION
+#ifdef CONFIG_TFA_NON_DSP_SOLUTION
 extern int send_tfa_cal_apr(void *buf, int cmd_size, bool bRead);
 #else
 int send_tfa_cal_apr(void *buf, int cmd_size, bool bRead)
@@ -1524,7 +1524,7 @@ static int tfa98xx_get_cal_ctl(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-#ifdef TFA_NON_DSP_SOLUTION
+#ifdef CONFIG_TFA_NON_DSP_SOLUTION
 static atomic_t g_bypass;
 static atomic_t g_Tx_enable;
 extern int send_tfa_cal_set_bypass(void *buf, int cmd_size);
@@ -1733,7 +1733,7 @@ static int tfa98xx_create_controls(struct tfa98xx *tfa98xx)
 	ret = snd_soc_add_codec_controls(tfa98xx->codec, tfa98xx_controls, mix_index);
 	pr_info("create tfa98xx_controls  ret=%d", ret);
 
-#ifdef TFA_NON_DSP_SOLUTION
+#ifdef CONFIG_TFA_NON_DSP_SOLUTION
 	ret = snd_soc_add_codec_controls(tfa98xx->codec, tfa987x_algo_controls, ARRAY_SIZE(tfa987x_algo_controls));
 	pr_info("create tfa987x_algo_controls  ret=%d", ret);
 #endif
@@ -2760,7 +2760,7 @@ static int tfa98xx_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-#ifdef TFA_NON_DSP_SOLUTION
+#ifdef CONFIG_TFA_NON_DSP_SOLUTION
 extern int send_tfa_cal_in_band(void *buf, int cmd_size);
 static uint8_t bytes[3*3+1] = {0};
 
@@ -2866,7 +2866,7 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 		if (tfa98xx->dsp_fw_state != TFA98XX_DSP_FW_OK)
 			return 0;
 		mutex_lock(&tfa98xx->dsp_lock);
-#ifdef TFA_NON_DSP_SOLUTION
+#ifdef CONFIG_TFA_NON_DSP_SOLUTION
 		tfa98xx_send_mute_cmd();
 		msleep(60);
 #endif
@@ -2876,7 +2876,7 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 	} else {
 		if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			tfa98xx->pstream = 1;
-#ifdef TFA_NON_DSP_SOLUTION
+#ifdef CONFIG_TFA_NON_DSP_SOLUTION
 			if (tfa98xx->tfa->is_probus_device) {
 				tfa98xx_adsp_send_calib_values();
 			}
