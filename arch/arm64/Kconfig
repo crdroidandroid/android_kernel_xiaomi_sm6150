@@ -1488,6 +1488,8 @@ endif
 
 source "lib/Kconfig"
 
+source "techpack/Kconfig"
+
 config FACTORY_BUILD
 	bool "distiguish factory version from dev version"
 	default n
