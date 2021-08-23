@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -134,14 +135,17 @@ static int wcd_measure_adc_once(struct wcd_mbhc *mbhc, int mux_ctl)
 	while (retry--) {
 		/* wait for 600usec to get adc results */
 		usleep_range(600, 610);
+		pr_debug("%s: retry: %d\n",  __func__, retry);
 
 		/* check for ADC Timeout */
 		WCD_MBHC_REG_READ(WCD_MBHC_ADC_TIMEOUT, adc_timeout);
+		pr_debug("%s: timeout: %d\n",  __func__, adc_timeout);
 		if (adc_timeout)
 			continue;
 
 		/* Read ADC complete bit */
 		WCD_MBHC_REG_READ(WCD_MBHC_ADC_COMPLETE, adc_complete);
+		pr_debug("%s: complete: %d\n",  __func__, adc_complete);
 		if (!adc_complete)
 			continue;
 
@@ -705,6 +709,12 @@ correct_plug_type:
 		}
 
 		msleep(180);
+		/* In the case of system bootup with headset pluged, mbhc
+		 * begin to detect without sound card registered. delay
+		 * about 150ms to wait sound card registe.
+		 */
+		if ((mbhc->mbhc_cfg->swap_gnd_mic == NULL) && (mbhc->mbhc_cfg->enable_usbc_analog))
+			msleep(200);
 		/*
 		 * Use ADC single mode to minimize the chance of missing out
 		 * btn press/release for HEADSET type during correct work.
@@ -887,6 +897,9 @@ enable_supply:
 	else
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 0);
 
+	if (plug_type == MBHC_PLUG_TYPE_HEADSET)
+		mbhc->micbias_enable = true;
+
 	if (mbhc->mbhc_cb->mbhc_micbias_control)
 		wcd_mbhc_adc_update_fsm_source(mbhc, plug_type);
 exit:
@@ -991,7 +1004,7 @@ static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
 				WCD_MBHC_REG_UPDATE_BITS(
 					WCD_MBHC_HPHL_PA_EN, 0);
 				WCD_MBHC_REG_UPDATE_BITS(
-					WCD_MBHC_HPH_PA_EN, 0);
+					WCD_MBHC_HPHR_PA_EN, 0);
 			}
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_HPHR_GND, 1);
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_HPHL_GND, 1);
@@ -1035,7 +1048,7 @@ static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
 		if (hphpa_on) {
 			hphpa_on = false;
 			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_HPHL_PA_EN, 1);
-			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_HPH_PA_EN, 1);
+			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_HPHR_PA_EN, 1);
 		}
 	}
 exit:
