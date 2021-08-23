@@ -11,20 +11,26 @@ endif
 ifeq ($(KERNEL_BUILD), 1)
 	# These are configurable via Kconfig for kernel-based builds
 	# Need to explicitly configure for Android-based builds
-	AUDIO_BLD_DIR := $(ANDROID_BUILD_TOP)/kernel/msm-4.9
+	AUDIO_BLD_DIR := $(ANDROID_BUILD_TOP)/kernel/msm-4.14
 	AUDIO_ROOT := $(AUDIO_BLD_DIR)/techpack/audio
 endif
 
 ifeq ($(KERNEL_BUILD), 0)
+	ifeq ($(CONFIG_ARCH_SM8150), y)
+		include $(AUDIO_ROOT)/config/sm8150auto.conf
+		export
+		INCS    +=  -include $(AUDIO_ROOT)/config/sm8150autoconf.h
+	endif
 	ifeq ($(CONFIG_ARCH_SM6150), y)
 		include $(AUDIO_ROOT)/config/sm6150auto.conf
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/sm6150autoconf.h
 	endif
-	ifeq ($(CONFIG_ARCH_TRINKET), y)
-		include $(AUDIO_ROOT)/config/trinketauto.conf
+
+	ifeq ($(CONFIG_ARCH_SDMSHRIKE), y)
+		include $(AUDIO_ROOT)/config/sm8150auto.conf
 		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/trinketautoconf.h
+		INCS    +=  -include $(AUDIO_ROOT)/config/sm8150autoconf.h
 	endif
 endif
 
@@ -51,36 +57,26 @@ UAPI_INC :=	-I$(AUDIO_ROOT)/include/$(UAPI_DIR)
 ############ COMMON ############
 COMMON_DIR :=	include
 COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
+TFA_INC    :=   -I$(AUDIO_ROOT)/asoc/codecs/awinic/inc
 
-############ WCD937X ############
-
-ifneq (,$(filter $(TARGET_PRODUCT), sweet sweetin))
-    CDEFINES += -DCONFIG_SND_SOC_AWINIC_AW882XX
+# for AW882XX Amplifer
+ifdef CONFIG_SND_SMARTPA_AW882XX
+	AW882XX_OBJS += src/aw_dsp.o
+	AW882XX_OBJS += src/aw882xx.o
+	AW882XX_OBJS += src/aw_init.o
+	AW882XX_OBJS += src/aw_calib.o
+	AW882XX_OBJS += src/aw_device.o
+	AW882XX_OBJS += src/aw_monitor.o
+	AW882XX_OBJS += src/aw_bin_parse.o
 endif
 
-ifneq (,$(filter $(TARGET_PRODUCT), phoenix phoenixin tucana toco tocoin sweet sweetin))
-	CDEFINES += -DCONFIG_SND_SOC_FOR_ULTRASOUND_PATH
-endif
+LINUX_INC += -Iinclude/linux
 
-# for WCD937X Codec
-ifdef CONFIG_SND_SOC_WCD937X
-	WCD937X_OBJS += wcd937x.o
-	WCD937X_OBJS += wcd937x-regmap.o
-	WCD937X_OBJS += wcd937x-tables.o
-	WCD937X_OBJS += wcd937x-mbhc.o
-endif
+INCS +=	$(COMMON_INC) \
+	$(UAPI_INC) \
+	$(TFA_INC)
 
-ifdef CONFIG_SND_SOC_WCD937X_SLAVE
-	WCD937X_SLAVE_OBJS += wcd937x_slave.o
-endif
-
-LINUX_INC +=	-Iinclude/linux
-
-INCS +=		$(COMMON_INC) \
-		$(UAPI_INC)
-
-EXTRA_CFLAGS += $(INCS)
-
+EXTRA_CFLAGS += -I$(src)/inc
 
 CDEFINES +=	-DANI_LITTLE_BYTE_ENDIAN \
 		-DANI_LITTLE_BIT_ENDIAN \
@@ -90,7 +86,9 @@ CDEFINES +=	-DANI_LITTLE_BYTE_ENDIAN \
 		-DPTT_SOCK_SVC_ENABLE \
 		-Wall\
 		-Werror\
-		-D__linux__
+		-D__linux__ \
+		-DDEBUG
+
 
 KBUILD_CPPFLAGS += $(CDEFINES)
 
@@ -115,16 +113,6 @@ KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/codec
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/soc/Module.symvers
 endif
 
-ifeq ($(CONFIG_SND_SOC_GCOV), y)
-GCOV_PROFILE := y
-endif
-
 # Module information used by KBuild framework
-obj-$(CONFIG_SND_SOC_WCD937X) += wcd937x_dlkm.o
-wcd937x_dlkm-y := $(WCD937X_OBJS)
-
-obj-$(CONFIG_SND_SOC_WCD937X_SLAVE) += wcd937x_slave_dlkm.o
-wcd937x_slave_dlkm-y := $(WCD937X_SLAVE_OBJS)
-
-# inject some build related information
-DEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
+obj-$(CONFIG_SND_SMARTPA_AW882XX)    += aw882xx_dlkm.o
+aw882xx_dlkm-y := $(AW882XX_OBJS)
