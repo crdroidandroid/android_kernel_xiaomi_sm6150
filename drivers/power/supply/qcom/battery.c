@@ -1252,8 +1252,6 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
 	 * check for termination at reduced float voltage and re-trigger
 	 * charging if new float voltage is above last FV.
 	 */
-/* This logic, together with FFC logic, will cause deadlock */
-/*
 	if ((chip->float_voltage_uv < fv_uv) && is_batt_available(chip)) {
 		rc = power_supply_get_property(chip->batt_psy,
 				POWER_SUPPLY_PROP_STATUS, &pval);
@@ -1274,7 +1272,6 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
 	}
 
 	chip->float_voltage_uv = fv_uv;
-*/
 
 	return 0;
 }
