@@ -72,8 +72,6 @@ static const unsigned int input_max_code[EV_CNT] = {
 static struct touch_event_info *touch_info;
 #endif
 
-void sde_crtc_touch_notify(void);
-
 #ifdef CONFIG_LAST_TOUCH_EVENTS
 static int input_device_is_touch(struct input_dev *input_dev)
 {
@@ -530,7 +528,6 @@ void input_event(struct input_dev *dev,
 		spin_lock_irqsave(&dev->event_lock, flags);
 		input_handle_event(dev, type, code, value);
 		spin_unlock_irqrestore(&dev->event_lock, flags);
-		sde_crtc_touch_notify();
 #ifdef CONFIG_LAST_TOUCH_EVENTS
 		touch_press_release_events_collect(dev, type, code, value);
 #endif
