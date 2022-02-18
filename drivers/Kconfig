@@ -227,4 +227,5 @@ source "drivers/esoc/Kconfig"
 
 source "techpack/data/drivers/Kconfig"
 
+source "drivers/dts_eagle/Kconfig"
 endmenu
