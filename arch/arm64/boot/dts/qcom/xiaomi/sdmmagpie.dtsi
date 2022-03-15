@@ -35,10 +35,6 @@
 	reg = <0 0x97f15000 0 0x2000>;
 };
 
-&secure_display_memory {
-	size = <0 0x8c00000>;
-};
-
 &wdog {
 	qcom,bark-time = <20000>;
 	qcom,pet-time = <15000>;
