@@ -1909,4 +1909,33 @@
 			};
 		};
 	};
+
+	/* Disable QCT default BCL throttling */
+	soc {
+		status = "disabled";
+	};
+
+	pm6150-bcl-lvl0 {
+		status = "disabled";
+	};
+
+	pm6150-bcl-lvl1	{
+		status = "disabled";
+	};
+
+	pm6150-bcl-lvl2	{
+		status = "disabled";
+	};
+
+	pm6150l-bcl-lvl0 {
+		status = "disabled";
+	};
+
+	pm6150l-bcl-lvl1 {
+		status = "disabled";
+	};
+
+	pm6150l-bcl-lvl2 {
+		status = "disabled";
+	};
 };
