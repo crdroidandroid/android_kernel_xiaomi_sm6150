@@ -9,11 +9,4 @@ config BQ2597X_CHARGE_PUMP
 	  BQ2597X is a div2 charge pump capable of delivering 8A charge current
 	  with very high efficiency.
 
-config K6_CHARGE
-	bool
-	prompt "K6 special modify."
-	default n
-	help
-		K6 special modify.
-
 endmenu
