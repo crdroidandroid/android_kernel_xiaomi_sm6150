@@ -651,6 +651,17 @@
 			size = <0 0x2000000>;
 			linux,cma-default;
 		};
+
+		/* reserve for pstore */
+		ramoops_mem: ramoops@9d800000 {
+			compatible = "ramoops";
+			reg = <0x0 0x9d800000 0x0 0x00400000>;
+
+			record-size = <0x200000>;
+			pmsg-size = <0x200000>;
+			ecc-size = <16>;
+			max-reason = <4>;
+		};
 	};
 };
 
