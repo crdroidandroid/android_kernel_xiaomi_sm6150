@@ -380,7 +380,6 @@ And public attribution of xiaomi platforms(like F3 and so and)
 	qcom,shutdown-delay-enable;
 	qcom,tcss-enable;
 	qcom,tcss-entry-soc = <90>;
-	qcom,bass-enable;
 
 	qcom,soc_decimal_rate = <
 		0  32
