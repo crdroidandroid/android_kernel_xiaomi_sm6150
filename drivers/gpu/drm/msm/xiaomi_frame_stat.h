@@ -59,7 +59,6 @@ struct frame_stat {
 	int skip_count;
 };
 
-void frame_stat_collector(u64 duration, enum stat_item item);
 void calc_fps(u64 duration, int input_event);
 void frame_stat_notify(int data);
 ssize_t smart_fps_value_show(struct device *device,

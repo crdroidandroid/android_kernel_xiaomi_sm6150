@@ -82,7 +82,6 @@ struct sde_crtc_custom_events {
 };
 
 struct drm_crtc *gcrtc;
-bool g_idleflag = true;
 bool idle_status;
 extern struct frame_stat fm_stat;
 
@@ -3081,13 +3080,11 @@ static void sde_crtc_frame_event_work(struct kthread_work *work)
 		SDE_ATRACE_END("signal_release_fence");
 	}
 
-	if (fevent->event & SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE) {
+	if (fevent->event & SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE)
 		/* this api should be called without spin_lock */
 		_sde_crtc_retire_event(fevent->connector, fevent->ts,
 				(fevent->event & SDE_ENCODER_FRAME_EVENT_ERROR)
 				? SDE_FENCE_SIGNAL_ERROR : SDE_FENCE_SIGNAL);
-		frame_stat_collector(0, RETIRE_FENCE_TS);
-	}
 
 	if (fevent->event & SDE_ENCODER_FRAME_EVENT_PANEL_DEAD)
 		SDE_ERROR("crtc%d ts:%lld received panel dead event\n",
@@ -4030,9 +4027,6 @@ static void sde_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct sde_crtc_state *cstate;
 	struct sde_kms *sde_kms;
 	int idle_time = 0;
-	ktime_t get_input_fence_ts;
-	ktime_t now;
-	s64 duration;
 
 	if (!crtc || !crtc->dev || !crtc->dev->dev_private) {
 		SDE_ERROR("invalid crtc\n");
@@ -4092,14 +4086,10 @@ static void sde_crtc_atomic_flush(struct drm_crtc *crtc,
 		sde_plane_restore(plane);
 
 	/* wait for acquire fences before anything else is done */
-	now = ktime_get();
 	_sde_crtc_wait_for_fences(crtc);
-	get_input_fence_ts = ktime_get();
-	duration = ktime_to_ns(ktime_sub(get_input_fence_ts, now));
-	frame_stat_collector(duration, GET_INPUT_FENCE_TS);
 
 	/* schedule the idle notify delayed work */
-	if (g_idleflag && idle_time && sde_encoder_check_curr_mode(sde_crtc->mixers[0].encoder,
+	if (sde_encoder_check_curr_mode(sde_crtc->mixers[0].encoder,
 						MSM_DISPLAY_VIDEO_MODE) && idle_time) {
 		kthread_queue_delayed_work(&event_thread->worker,
 					&sde_crtc->idle_notify_work,

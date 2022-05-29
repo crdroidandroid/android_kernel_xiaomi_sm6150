@@ -5269,7 +5269,6 @@ static void handle_dsi_read_data(struct dsi_panel *panel, struct dsi_read_config
 }
 
 extern struct msm_display_info *g_msm_display_info;
-extern bool g_idleflag;
 int panel_disp_param_send_lock(struct dsi_panel *panel, int param)
 {
 	int rc = 0;
@@ -5848,14 +5847,6 @@ int panel_disp_param_send_lock(struct dsi_panel *panel, int param)
 	case DISPPARAM_DEMURA_LEVEL0D:
 		pr_info("DEMURA LEVEL 0D\n");
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_DEMURA_LEVEL0D);
-		break;
-	case DISPPARAM_IDLE_ON:
-		pr_info("idle on\n");
-		g_idleflag = true;
-		break;
-	case DISPPARAM_IDLE_OFF:
-		pr_info("idle off\n");
-		g_idleflag = false;
 		break;
 	case DISPPARAM_ONE_PLUSE:
 		pr_info("ONE PLUSE\n");

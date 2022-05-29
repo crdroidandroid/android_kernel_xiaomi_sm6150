@@ -141,38 +141,3 @@ exit:
 final:
 	return;
 }
-
-void frame_stat_collector(u64 duration, enum stat_item item)
-{
-	ktime_t now = ktime_get();
-
-	switch (item) {
-	case COMMIT_START_TS:
-		fm_stat.commit_start_ts = now;
-		pr_debug("%s: commit start ts = %lld\n", __func__, fm_stat.commit_start_ts);
-		break;
-	case GET_INPUT_FENCE_TS:
-		fm_stat.get_input_fence_ts = now;
-		pr_debug("%s: get_input_fence_ts = %lld, duration = %lld \n", __func__, fm_stat.get_input_fence_ts, duration);
-		fm_stat.input_fence_duration = duration;
-		break;
-	case VBLANK_TS:
-		fm_stat.commit_start_ts = now;
-		pr_debug("vblank ts = %lld\n", fm_stat.get_input_fence_ts);
-		break;
-	case RETIRE_FENCE_TS:
-		fm_stat.retire_fence_ts = now;
-		pr_debug("%s: retire fence ts = %lld\n", __func__, fm_stat.retire_fence_ts);
-		break;
-	case COMMIT_END_TS:
-		fm_stat.commit_end_ts = now;
-		if (fm_stat.input_fence_duration > duration/10)
-			pr_debug("%s: long wait for input fence might cause frame miss!\n", __func__);
-		calc_fps(duration, 0);
-		break;
-	default:
-		break;
-	}
-
-	return;
-}
