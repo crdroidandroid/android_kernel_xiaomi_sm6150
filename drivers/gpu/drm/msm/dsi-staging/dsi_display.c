@@ -279,8 +279,6 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	rc = dsi_panel_set_backlight(panel, (u32)bl_temp);
 	if (rc)
 		pr_err("unable to set backlight\n");
-	else
-		pr_info("set backlight successfully at: bl_scale = %u, bl_scale_ad = %u, bl_lvl = %u\n", bl_scale, bl_scale_ad, (u32)bl_temp);
 
 	rc = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_OFF);
@@ -293,59 +291,6 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
-}
-
-//thermal_hbm_disabled
-int dsi_display_set_thermal_hbm_disabled(struct drm_connector *connector,
-			bool thermal_hbm_disabled)
-{
-	struct sde_connector *c_conn = NULL;
-	struct dsi_display *display = NULL;
-
-	if (!connector) {
-		pr_err("invalid argument\n");
-		return -EINVAL;
-	}
-
-	c_conn = to_sde_connector(connector);
-	if (!c_conn->display) {
-		pr_err("invalid connector display\n");
-		return -EINVAL;
-	}
-
-	if (c_conn->connector_type != DRM_MODE_CONNECTOR_DSI) {
-		pr_err("unsupported connector (%s)\n", connector->name);
-		return -EINVAL;
-	}
-
-	display = (struct dsi_display *)c_conn->display;
-	return dsi_panel_set_thermal_hbm_disabled(display->panel, thermal_hbm_disabled);
-}
-
-int dsi_display_get_thermal_hbm_disabled(struct drm_connector *connector,
-			bool *thermal_hbm_disabled)
-{
-	struct sde_connector *c_conn = NULL;
-	struct dsi_display *display = NULL;
-
-	if (!connector) {
-		pr_err("invalid argument\n");
-		return -EINVAL;
-	}
-
-	c_conn = to_sde_connector(connector);
-	if (!c_conn->display) {
-		pr_err("invalid connector display\n");
-		return -EINVAL;
-	}
-
-	if (c_conn->connector_type != DRM_MODE_CONNECTOR_DSI) {
-		pr_err("unsupported connector (%s)\n", connector->name);
-		return -EINVAL;
-	}
-
-	display = (struct dsi_display *)c_conn->display;
-	return dsi_panel_get_thermal_hbm_disabled(display->panel, thermal_hbm_disabled);
 }
 
 int dsi_display_cmd_engine_enable(struct dsi_display *display)
@@ -672,7 +617,6 @@ static bool dsi_display_validate_reg_read(struct dsi_panel *panel)
 
 	for (j = 0; j < config->groups; ++j) {
 		for (i = 0; i < len; ++i) {
-			pr_debug("%s: 0x%x\n", __func__, config->return_buf[i]);
 			if (config->return_buf[i] !=
 				config->status_value[group + i]) {
 				DRM_ERROR("mismatch: 0x%x\n",
@@ -1345,14 +1289,12 @@ int dsi_display_set_power(struct drm_connector *connector,
 		return -EINVAL;
 	}
 
-        if (!connector || !connector->dev) {
-                pr_err("invalid connector/dev\n");
-                return -EINVAL;
-        } else {
-                dev = connector->dev;
-                event = dev->doze_state;
-        }
-
+	if (!connector || !connector->dev) {
+		pr_err("invalid connector/dev\n");
+		return -EINVAL;
+	}
+	dev = connector->dev;
+	event = dev->doze_state;
 	g_notify_data.data = &event;
 
 	switch (power_mode) {
