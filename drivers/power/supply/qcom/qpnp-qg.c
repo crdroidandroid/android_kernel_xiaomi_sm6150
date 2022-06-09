@@ -5178,7 +5178,8 @@ static void soc_monitor_work(struct work_struct *work)
 			chip->param.batt_soc, chip->param.batt_raw_soc,
 			chip->param.batt_ma, chip->charge_status);
 
-	schedule_delayed_work(&chip->soc_monitor_work, msecs_to_jiffies(MONITOR_SOC_WAIT_PER_MS));
+	queue_delayed_work(system_power_efficient_wq, &chip->soc_monitor_work,
+		msecs_to_jiffies(MONITOR_SOC_WAIT_PER_MS));
 }
 
 #define FORCE_SHUTDOWN_COUNT	10
@@ -5476,7 +5477,8 @@ static int qpnp_qg_resume(struct device *dev)
 			QG_INIT_STATE_IRQ_DISABLE, false, 0);
 
 	chip->param.update_now = true;
-	schedule_delayed_work(&chip->soc_monitor_work, msecs_to_jiffies(MONITOR_SOC_WAIT_MS));
+	queue_delayed_work(system_power_efficient_wq, &chip->soc_monitor_work,
+		msecs_to_jiffies(MONITOR_SOC_WAIT_MS));
 
 	chip->force_shutdown == false;
 	schedule_delayed_work(&chip->force_shutdown_work, msecs_to_jiffies(URGENT_DELAY_MS));
@@ -5710,7 +5712,8 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	}
 
 	chip->param.batt_soc = -EINVAL;
-	schedule_delayed_work(&chip->soc_monitor_work, msecs_to_jiffies(MONITOR_SOC_WAIT_MS));
+	queue_delayed_work(system_power_efficient_wq, &chip->soc_monitor_work,
+		msecs_to_jiffies(MONITOR_SOC_WAIT_MS));
 
 	chip->force_shutdown == false;
 	schedule_delayed_work(&chip->force_shutdown_work, msecs_to_jiffies(URGENT_DELAY_MS));
