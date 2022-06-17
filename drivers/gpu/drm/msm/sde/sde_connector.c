@@ -2173,41 +2173,6 @@ static int sde_connector_atomic_check(struct drm_connector *connector,
 	return 0;
 }
 
-static irqreturn_t esd_err_irq_handle(int irq, void *data)
-{
-	struct sde_connector *c_conn = data;
-	struct dsi_display *dsi_display = (struct dsi_display *)(c_conn->display);
-	struct drm_event event;
-	bool panel_on = false;
-	char err_irq_gpio_value = 1;
-
-	if (!c_conn && !c_conn->display) {
-		SDE_DEFERRED_ERROR("not able to get connector object\n");
-		return IRQ_HANDLED;
-	}
-
-	if (c_conn->connector_type == DRM_MODE_CONNECTOR_DSI) {
-		struct dsi_display *dsi_display = (struct dsi_display *)(c_conn->display);
-		if (dsi_display && dsi_display->panel && dsi_display->panel->esd_config.esd_err_irq_gpio > 0) {
-			panel_on = dsi_display->panel->panel_initialized;
-			err_irq_gpio_value = gpio_get_value(dsi_display->panel->esd_config.esd_err_irq_gpio);
-		}
-	}
-
-	if (panel_on && (c_conn->panel_dead == false) && err_irq_gpio_value == 0) {
-		SDE_DEFERRED_ERROR("esd check irq report PANEL_DEAD conn_id: %d enc_id: %d, panel_status[%d]\n",
-		c_conn->base.base.id, c_conn->encoder->base.id, panel_on);
-		dsi_display->panel->panel_dead_flag = true;
-		c_conn->panel_dead = true;
-		event.type = DRM_EVENT_PANEL_DEAD;
-		event.length = sizeof(bool);
-		msm_mode_object_event_notify(&c_conn->base.base,
-			c_conn->base.dev, &event, (u8 *)&c_conn->panel_dead);
-		sde_encoder_display_failure_notification(c_conn->encoder, false);
-	}
-	return IRQ_HANDLED;
-}
-
 static void _sde_connector_report_panel_dead(struct sde_connector *conn,
 	bool skip_pre_kickoff)
 {
