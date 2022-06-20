@@ -1,5 +1,4 @@
 /* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,8 +12,6 @@
 
 #ifndef _CAM_DEBUG_UTIL_H_
 #define _CAM_DEBUG_UTIL_H_
-
-#define CAM_IS_NULL_TO_STR(ptr) ((ptr) ? "Non-NULL" : "NULL")
 
 #define CAM_CDM        (1 << 0)
 #define CAM_CORE       (1 << 1)
