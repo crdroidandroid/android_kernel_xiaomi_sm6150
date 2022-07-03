@@ -26,7 +26,6 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_flip_work.h>
-#include <drm/drm_notifier.h>
 #include <linux/clk/qcom.h>
 #include <linux/sde_rsc.h>
 

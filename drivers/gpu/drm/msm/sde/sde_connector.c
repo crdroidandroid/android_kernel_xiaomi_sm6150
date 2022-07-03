@@ -19,6 +19,7 @@
 #include "sde_connector.h"
 #include "sde_encoder.h"
 #include <linux/backlight.h>
+#include <linux/msm_drm_notify.h>
 #include <linux/string.h>
 #include "dsi_drm.h"
 #include "dsi_display.h"
@@ -26,7 +27,6 @@
 #include "sde_rm.h"
 #include "dsi_panel.h"
 #include "sde_trace.h"
-#include <drm/drm_notifier.h>
 
 #define BL_NODE_NAME_SIZE 32
 
@@ -739,7 +739,7 @@ int sde_connector_update_hbm(struct sde_connector *c_conn)
 			mutex_lock(&dsi_display->panel->panel_lock);
 			sde_encoder_wait_for_event(c_conn->encoder, MSM_ENC_VBLANK);
 			if (dsi_display->drm_dev
-				&& ((dsi_display->drm_dev->doze_state == DRM_BLANK_LP1)	|| (dsi_display->drm_dev->doze_state == DRM_BLANK_LP2))) {
+				&& ((dsi_display->drm_dev->doze_state == MSM_DRM_BLANK_LP1)	|| (dsi_display->drm_dev->doze_state == MSM_DRM_BLANK_LP2))) {
 				if (dsi_display->drm_dev->doze_brightness == DOZE_BRIGHTNESS_HBM) {
 					pr_info("hbm fod off doze hbm on\n");
 					dsi_display_write_panel(dsi_display, &dsi_display->panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_DOZE_HBM]);
@@ -834,7 +834,7 @@ int sde_connector_update_hbm(struct sde_connector *c_conn)
 				sde_encoder_wait_for_event(c_conn->encoder, MSM_ENC_VBLANK);
 
 			if (dsi_display->drm_dev
-					&& ((dsi_display->drm_dev->doze_state == DRM_BLANK_LP1) || (dsi_display->drm_dev->doze_state == DRM_BLANK_LP2))) {
+					&& ((dsi_display->drm_dev->doze_state == MSM_DRM_BLANK_LP1) || (dsi_display->drm_dev->doze_state == MSM_DRM_BLANK_LP2))) {
 				pr_info("aod to HBM\n");
 				if (dsi_display->panel->f4_51_ctrl_flag || dsi_display->panel->bl_config.xiaomi_f4_41_flag) {
 					sde_encoder_wait_for_event(c_conn->encoder, MSM_ENC_TX_COMPLETE);
