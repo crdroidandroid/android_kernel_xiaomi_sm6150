@@ -27,13 +27,10 @@
 #include "dsi_parser.h"
 #include "dsi_panel_mi.h"
 
-
-#include <drm/drm_notifier.h>
 #include <linux/fs.h>
+#include <linux/msm_drm_notify.h>
 #include <asm/uaccess.h>
 #include <asm/fcntl.h>
-
-#include <drm/drm_notifier.h>
 
 #define DSI_READ_WRITE_PANEL_DEBUG 1
 #if DSI_READ_WRITE_PANEL_DEBUG
@@ -853,8 +850,8 @@ int dsi_panel_set_doze_backlight(struct dsi_display *display)
 	if (drm_dev->doze_brightness == DOZE_BRIGHTNESS_LBM ||drm_dev->doze_brightness == DOZE_BRIGHTNESS_HBM)
 		last_aod_hbm_status  = drm_dev->doze_brightness;
 
-	if (drm_dev && ((panel->oled_panel_video_mode && drm_dev->doze_state == DRM_BLANK_UNBLANK)
-		||drm_dev->doze_state == DRM_BLANK_LP1 || drm_dev->doze_state == DRM_BLANK_LP2)) {
+	if (drm_dev && ((panel->oled_panel_video_mode && drm_dev->doze_state == MSM_DRM_BLANK_UNBLANK)
+		||drm_dev->doze_state == MSM_DRM_BLANK_LP1 || drm_dev->doze_state == MSM_DRM_BLANK_LP2)) {
 		if (panel->fod_hbm_enabled || panel->fod_dimlayer_hbm_enabled || panel->fod_backlight_flag) {
 			pr_info("%s FOD HBM open, skip set doze backlight at: [hbm=%d][dimlayer_fod=%d][fod_bl=%d]\n", __func__,
 			panel->fod_hbm_enabled, panel->fod_dimlayer_hbm_enabled, panel->fod_backlight_flag);
@@ -5537,8 +5534,8 @@ int panel_disp_param_send_lock(struct dsi_panel *panel, int param)
 				display = container_of(host, struct dsi_display, host);
 
 			if (display->drm_dev
-				&& ((display->drm_dev->doze_state == DRM_BLANK_LP1)
-					|| (display->drm_dev->doze_state == DRM_BLANK_LP2))) {
+				&& ((display->drm_dev->doze_state == MSM_DRM_BLANK_LP1)
+					|| (display->drm_dev->doze_state == MSM_DRM_BLANK_LP2))) {
 #if 0
 				if (panel->last_bl_lvl > panel->doze_backlight_threshold) {
 					pr_info("hbm fod off DSI_CMD_SET_DOZE_HBM");
@@ -5751,8 +5748,8 @@ int panel_disp_param_send_lock(struct dsi_panel *panel, int param)
 			rc = dsi_panel_update_backlight(panel, panel->last_bl_lvl);
 
 			if (display->drm_dev
-				&& ((display->drm_dev->doze_state == DRM_BLANK_LP1)
-					|| (display->drm_dev->doze_state == DRM_BLANK_LP2))) {
+				&& ((display->drm_dev->doze_state == MSM_DRM_BLANK_LP1)
+					|| (display->drm_dev->doze_state == MSM_DRM_BLANK_LP2))) {
 #if 0
 				if (panel->last_bl_lvl > panel->doze_backlight_threshold) {
 					pr_info("FOD backlight restore DSI_CMD_SET_DOZE_HBM");
