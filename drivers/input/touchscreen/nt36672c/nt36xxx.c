@@ -32,13 +32,13 @@
 #include <linux/double_click.h>
 #include <linux/spi-xiaomi-tp.h>
 
-#if defined(CONFIG_FB)
-#ifdef CONFIG_DRM_MSM
-#include <drm/drm_notifier.h>
-#endif
 #include <linux/notifier.h>
+#ifdef CONFIG_DRM
+#include <linux/msm_drm_notify.h>
+#endif
+
 #include <linux/fb.h>
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
+#if defined(CONFIG_HAS_EARLYSUSPEND)
 #include <linux/earlysuspend.h>
 #endif
 
@@ -99,13 +99,12 @@ static struct workqueue_struct *nvt_lockdown_wq;
 extern void Boot_Update_Firmware(struct work_struct *work);
 #endif
 
-#if defined(CONFIG_FB)
-#ifdef _DRM_NOTIFIER_H_
+#ifdef CONFIG_DRM
 static int nvt_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
 #else
 static int nvt_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
 #endif
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
+#if defined(CONFIG_HAS_EARLYSUSPEND)
 static void nvt_ts_early_suspend(struct early_suspend *h);
 static void nvt_ts_late_resume(struct early_suspend *h);
 #endif
@@ -2558,10 +2557,9 @@ static int32_t nvt_ts_probe(struct platform_device *pdev)
 	INIT_WORK(&ts->resume_work, nvt_resume_work);
 	/*INIT_WORK(&ts->suspend_work, nvt_suspend_work);*/
 
-#if defined(CONFIG_FB)
-#ifdef _DRM_NOTIFIER_H_
+#ifdef CONFIG_DRM
 	ts->drm_notif.notifier_call = nvt_drm_notifier_callback;
-	ret = drm_register_client(&ts->drm_notif);
+	ret = msm_drm_register_client(&ts->drm_notif);
 	if(ret) {
 		NVT_ERR("register drm_notifier failed. ret=%d\n", ret);
 		goto err_register_drm_notif_failed;
@@ -2574,7 +2572,7 @@ static int32_t nvt_ts_probe(struct platform_device *pdev)
 		goto err_register_fb_notif_failed;
 	}
 #endif
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
+#if defined(CONFIG_HAS_EARLYSUSPEND)
 	ts->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
 	ts->early_suspend.suspend = nvt_ts_early_suspend;
 	ts->early_suspend.resume = nvt_ts_late_resume;
@@ -2608,9 +2606,8 @@ static int32_t nvt_ts_probe(struct platform_device *pdev)
 
 	return 0;
 
-#if defined(CONFIG_FB)
-#ifdef _DRM_NOTIFIER_H_
-	if (drm_unregister_client(&ts->drm_notif))
+#ifdef CONFIG_DRM
+	if(msm_drm_unregister_client(&ts->drm_notif))
 		NVT_ERR("Error occurred while unregistering drm_notifier.\n");
 err_register_drm_notif_failed:
 #else
@@ -2618,7 +2615,7 @@ err_register_drm_notif_failed:
 		NVT_ERR("Error occurred while unregistering fb_notifier.\n");
 err_register_fb_notif_failed:
 #endif
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
+#if defined(CONFIG_HAS_EARLYSUSPEND)
 	unregister_early_suspend(&ts->early_suspend);
 err_register_early_suspend_failed:
 #endif
@@ -2703,15 +2700,14 @@ static int32_t nvt_ts_remove(struct platform_device *pdev)
 {
 	NVT_LOG("Removing driver...\n");
 
-#if defined(CONFIG_FB)
-#ifdef _DRM_NOTIFIER_H_
-	if (drm_unregister_client(&ts->drm_notif))
+#ifdef CONFIG_DRM
+	if (msm_drm_unregister_client(&ts->drm_notif))
 		NVT_ERR("Error occurred while unregistering drm_notifier.\n");
 #else
 	if (fb_unregister_client(&ts->fb_notif))
 		NVT_ERR("Error occurred while unregistering fb_notifier.\n");
 #endif
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
+#if defined(CONFIG_HAS_EARLYSUSPEND)
 	unregister_early_suspend(&ts->early_suspend);
 #endif
 
@@ -2779,15 +2775,14 @@ static void nvt_ts_shutdown(struct platform_device *pdev)
 
 	nvt_irq_enable(false);
 
-#if defined(CONFIG_FB)
-#ifdef _DRM_NOTIFIER_H_
-	if (drm_unregister_client(&ts->drm_notif))
+#ifdef CONFIG_DRM
+	if (msm_drm_unregister_client(&ts->drm_notif))
 		NVT_ERR("Error occurred while unregistering drm_notifier.\n");
 #else
 	if (fb_unregister_client(&ts->fb_notif))
 		NVT_ERR("Error occurred while unregistering fb_notifier.\n");
 #endif
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
+#if defined(CONFIG_HAS_EARLYSUSPEND)
 	unregister_early_suspend(&ts->early_suspend);
 #endif
 
@@ -3027,33 +3022,36 @@ static int32_t nvt_ts_resume(struct device *dev)
 	return 0;
 }
 
-#if defined(CONFIG_FB)
-#ifdef _DRM_NOTIFIER_H_
+#ifdef CONFIG_DRM
 static int nvt_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
 {
-	struct drm_notify_data *evdata = data;
+	struct msm_drm_notifier *evdata = data;
 	int *blank;
-	struct nvt_ts_data *ts =
+	struct nvt_ts_data *ts_data=
 		container_of(self, struct nvt_ts_data, drm_notif);
 
-	if (evdata && evdata->data && ts) {
+	if (evdata && ts_data) {
 		blank = evdata->data;
-		if (event == DRM_EARLY_EVENT_BLANK) {
-			if (*blank == DRM_BLANK_POWERDOWN) {
+		NVT_LOG("%s: event:%lu,blank:%u\n", event, blank);
+
+		if (event == MSM_DRM_EARLY_EVENT_BLANK) {
+			if (*blank == MSM_DRM_BLANK_POWERDOWN) {
 				NVT_LOG("event=%lu, *blank=%d\n", event, *blank);
-				flush_workqueue(ts->event_wq);
-				nvt_ts_suspend(&ts->client->dev);
+				flush_workqueue(ts_data->event_wq);
+				nvt_ts_suspend(&ts_data->client->dev);
 			}
-		} else if (event == DRM_EVENT_BLANK) {
-			if (*blank == DRM_BLANK_UNBLANK) {
+		} else if (event == MSM_DRM_EVENT_BLANK) {
+			if (*blank == MSM_DRM_BLANK_UNBLANK) {
 				NVT_LOG("event=%lu, *blank=%d\n", event, *blank);
-				flush_workqueue(ts->event_wq);
-				queue_work(ts->event_wq, &ts->resume_work);
+				flush_workqueue(ts_data->event_wq);
+				queue_work(ts_data->event_wq, &ts_data->resume_work);
 			}
 		}
+
 	}
-	return 0;
+	return NOTIFY_OK;
 }
+
 #else
 static int nvt_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
 {
@@ -3111,7 +3109,7 @@ static const struct dev_pm_ops nvt_dev_pm_ops = {
 	.resume = nvt_pm_resume,
 };
 
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
+#if defined(CONFIG_HAS_EARLYSUSPEND)
 /*******************************************************
 Description:
 	Novatek touchscreen driver early suspend function.
