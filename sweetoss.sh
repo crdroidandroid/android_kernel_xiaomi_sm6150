@@ -117,7 +117,7 @@ elif [ "$TOOLCHAIN" == clang ]; then
 	if [ ! -d "$HOME/clang" ]
 	then
 		echo -e "$green << cloning clang >> \n $white"
-		git clone --depth=1 https://github.com/kdrag0n/proton-clang.git "$HOME"/clang
+		git clone --depth=1 https://gitlab.com/Panchajanya1999/azure-clang.git "$HOME"/clang
 	fi
 	export PATH="$HOME/clang/bin:$PATH"
 	export KBUILD_COMPILER_STRING=$("$HOME"/clang/bin/clang --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')
@@ -134,6 +134,7 @@ if [ "$TOOLCHAIN" == clang  ]; then
                               ARCH=arm64 \
                               AR=llvm-ar \
                               NM=llvm-nm \
+                              LD=ld.lld \
                               OBJCOPY=llvm-objcopy \
                               OBJDUMP=llvm-objdump \
                               STRIP=llvm-strip \
