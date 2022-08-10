@@ -120,7 +120,6 @@ elif [ "$TOOLCHAIN" == clang ]; then
 		git clone --depth=1 https://github.com/kdrag0n/proton-clang.git "$HOME"/clang
 	fi
 	export PATH="$HOME/clang/bin:$PATH"
-	export STRIP="$HOME/clang/aarch64-linux-gnu/bin/strip"
 	export KBUILD_COMPILER_STRING=$("$HOME"/clang/bin/clang --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')
 fi
 
