@@ -1787,6 +1787,7 @@ out:
 
 int goodix_ts_suspend(struct goodix_ts_core *core_data)
 {
+	atomic_set(&core_data->want_to_resume, false);
 	return goodix_ts_suspend_lock(core_data, true);
 }
 
@@ -1897,6 +1898,7 @@ out:
 
 int goodix_ts_resume(struct goodix_ts_core *core_data)
 {
+	atomic_set(&core_data->want_to_resume, true);
 	return goodix_ts_resume_lock(core_data, true);
 }
 
@@ -2674,8 +2676,10 @@ static int gtp_set_cur_value(int gtp_mode, int gtp_value)
 		mutex_lock(&goodix_core_data->work_stat);
 		ts_info("locked work_stat mutex");
 		suspended = atomic_read(&goodix_core_data->suspended);
-		if (suspended) {
+		if (!atomic_read(&goodix_core_data->want_to_resume) && suspended) {
 			goodix_ts_resume_lock(goodix_core_data, false);
+		} else if (suspended) {
+			ts_info("dev want to resume, don't suspend");
 		}
 		goodix_core_data->fod_status = gtp_value;
 		if (goodix_core_data->fod_status == -1 || goodix_core_data->fod_status == 100) {
@@ -3050,6 +3054,8 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	/*init complete and pm status*/
 	core_data->tp_already_suspend = false;
 	init_completion(&core_data->pm_resume_completion);
+
+	atomic_set(&core_data->want_to_resume, false);
 
 	/*create sysfs files*/
 	goodix_ts_sysfs_init(core_data);
