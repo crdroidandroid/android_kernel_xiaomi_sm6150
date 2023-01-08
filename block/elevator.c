@@ -642,8 +642,7 @@ void elv_drain_elevator(struct request_queue *q)
 
 void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 {
-    struct list_head *entry;
-
+	struct list_head *entry;
 	trace_block_rq_insert(q, rq);
 
 	blk_pm_add_request(q, rq);
@@ -673,18 +672,18 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 		* set, see elv_next_request().
 		*/
 		if (rq->q->dev && !(rq->rq_flags & RQF_PM)) {
-		list_for_each(entry, &q->queue_head) {
-		struct request *pos = list_entry_rq(entry);
+			list_for_each(entry, &q->queue_head) {
+				struct request *pos = list_entry_rq(entry);
 
-		/* Found the first non-PM request */
-		if (!(pos->rq_flags & RQF_PM)) {
-		entry = entry->prev;
-		break;
-		}
+				/* Found the first non-PM request */
+				if (!(pos->rq_flags & RQF_PM)) {
+					entry = entry->prev;
+					break;
+				}
 
-		if (list_is_last(entry, &q->queue_head))
-		break;
-		}
+				if (list_is_last(entry, &q->queue_head))
+					break;
+			}
 		}
 		#endif
 		list_add(&rq->queuelist, entry);
