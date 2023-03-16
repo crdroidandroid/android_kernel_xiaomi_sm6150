@@ -25,9 +25,11 @@
  * as published by the Free Software Foundation.
  */
 
-#define CONFIG_FINGERPRINT_FP_VREG_CONTROL
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#ifdef CONFIG_MACH_XIAOMI_SWEET
+#define FPC_DRM_INTERFACE_WA
+#endif
 #include <linux/atomic.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -90,7 +92,11 @@ static struct vreg_config vreg_conf[] = {
 	/*{ "vdd_io", 1800000UL, 1800000UL, 6000, }, */
 };
 
+#ifdef CONFIG_MACH_XIAOMI_SWEET
+static int power_cfg = 1;
+#else
 static int power_cfg = 0;
+#endif
 
 struct fpc1020_data {
 	struct device *dev;
