@@ -2694,6 +2694,7 @@ CONFIG_POWER_SUPPLY=y
 # CONFIG_BATTERY_RT5033 is not set
 # CONFIG_CHARGER_RT9455 is not set
 CONFIG_K6_CHARGE=y
+CONFIG_CHARGER_LN8000=y
 
 #
 # Qualcomm Technologies, Inc. Charger and Fuel Gauge support
