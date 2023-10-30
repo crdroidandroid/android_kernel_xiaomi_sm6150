@@ -492,6 +492,7 @@ struct goodix_ts_core {
 	atomic_t irq_enabled;
 	atomic_t suspended;
 
+	struct workqueue_struct *power_supply_wq;
 	struct workqueue_struct *event_wq;
 	struct workqueue_struct *touch_feature_wq;
 	struct workqueue_struct *touch_gesture_wq;
