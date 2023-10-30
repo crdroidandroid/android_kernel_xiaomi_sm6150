@@ -1033,6 +1033,7 @@ static void goodix_ts_proc_exit(struct goodix_ts_core *core_data)
 }
 static void goodix_ts_wq_exit(struct goodix_ts_core *core_data)
 {
+	destroy_workqueue(core_data->power_supply_wq);
 	destroy_workqueue(core_data->event_wq);
 	destroy_workqueue(core_data->touch_gesture_wq);
 #ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
@@ -1350,7 +1351,6 @@ static int goodix_ts_power_init(struct goodix_ts_core *core_data)
 	struct device *dev = NULL;
 	int r = 0;
 
-	ts_info("Power init");
 	/* dev:i2c client device or spi slave device*/
 	dev =  core_data->ts_dev->dev;
 	ts_bdata = board_data(core_data);
@@ -1374,7 +1374,6 @@ static int goodix_ts_power_init(struct goodix_ts_core *core_data)
 
 	r = regulator_enable(core_data->avdd);
 	if (!r) {
-		ts_info("regulator enable SUCCESS");
 		if (ts_bdata->power_on_delay_us)
 			usleep_range(ts_bdata->power_on_delay_us,
 					ts_bdata->power_on_delay_us);
@@ -1408,7 +1407,6 @@ int goodix_ts_power_on(struct goodix_ts_core *core_data)
 
 	r = regulator_enable(core_data->avdd);
 	if (!r) {
-		ts_info("regulator enable SUCCESS");
 		if (ts_bdata->power_on_delay_us)
 			usleep_range(ts_bdata->power_on_delay_us,
 					ts_bdata->power_on_delay_us);
@@ -1440,7 +1438,6 @@ int goodix_ts_power_off(struct goodix_ts_core *core_data)
 	if (core_data->avdd) {
 		r = regulator_disable(core_data->avdd);
 		if (!r) {
-			ts_info("regulator disable SUCCESS");
 			if (ts_bdata->power_off_delay_us)
 				usleep_range(ts_bdata->power_off_delay_us,
 						ts_bdata->power_off_delay_us);
@@ -1533,8 +1530,6 @@ static int goodix_ts_gpio_setup(struct goodix_ts_core *core_data)
 	struct goodix_ts_board_data *ts_bdata = board_data(core_data);
 	int r = 0;
 
-	ts_info("GPIO setup,reset-gpio:%d, irq-gpio:%d",
-		ts_bdata->reset_gpio, ts_bdata->irq_gpio);
 	/*
 	 * after kenerl3.13, gpio_ api is deprecated, new
 	 * driver should use gpiod_ api.
@@ -1554,7 +1549,7 @@ static int goodix_ts_gpio_setup(struct goodix_ts_core *core_data)
 		ts_err("Failed to request reset gpio, r:%d", r);
 		return r;
 	}
-	udelay(1000);
+	udelay(2500);
 	gpio_direction_output(ts_bdata->reset_gpio, 1);
 
 	r = devm_gpio_request_one(&core_data->pdev->dev, ts_bdata->irq_gpio,
@@ -2128,17 +2123,26 @@ static void goodix_power_supply_work(struct work_struct *work)
 {
 	int ret;
 	struct goodix_ts_core *core_data = container_of(work, struct goodix_ts_core, power_supply_work);
+	struct goodix_ts_device *ts_dev = core_data->ts_dev;
 	union power_supply_propval cur_chgr = {0,};
 	static u8 is_usb_exit = 0;
+
+	if (!core_data)
+		return;
+
+	if (atomic_read(&core_data->suspended) == 1 && !core_data->gesture_enabled) {
+		return;
+	}
 
 	if (!core_data->battery_psy) {
 		ts_err("battery psy is NULL, something error!!");
 		return;
 	}
+	pm_stay_awake(ts_dev->dev);
 	ret = power_supply_get_property(core_data->battery_psy, POWER_SUPPLY_PROP_STATUS, &cur_chgr);
 	if (ret < 0) {
 		ts_err("get psy property failed!!, skip charger mode handler");
-		return;
+		goto out;
 	}
 
 	switch (cur_chgr.intval) {
@@ -2160,6 +2164,8 @@ static void goodix_power_supply_work(struct work_struct *work)
 		ts_err("unsupport charger state %d", cur_chgr.intval);
 		break;
 	}
+out:
+	pm_relax(ts_dev->dev);
 }
 
 static int goodix_power_supply_event(struct notifier_block *nb, unsigned long event, void *ptr)
@@ -2168,7 +2174,7 @@ static int goodix_power_supply_event(struct notifier_block *nb, unsigned long ev
 
 	if (!core_data)
 		return 0;
-	queue_work(core_data->event_wq, &core_data->power_supply_work);
+	queue_work(core_data->power_supply_wq, &core_data->power_supply_work);
 	return 0;
 }
 
@@ -2191,7 +2197,7 @@ int goodix_ts_msm_drm_notifier_callback(struct notifier_block *self,
 			ts_notice("notifier tp event:%d, code:%d.", event, blank);
 			ts_info("touchpanel resume");
 			queue_work(core_data->event_wq, &core_data->resume_work);
-		} else if (event == MSM_DRM_EVENT_BLANK && (blank == MSM_DRM_BLANK_POWERDOWN ||
+		} else if (event == MSM_DRM_EARLY_EVENT_BLANK && (blank == MSM_DRM_BLANK_POWERDOWN ||
 			blank == MSM_DRM_BLANK_LP1 || blank == MSM_DRM_BLANK_LP2)) {
 			ts_notice("notifier tp event:%d, code:%d.", event, blank);
 			ts_info("touchpanel suspend by %s", blank == MSM_DRM_BLANK_POWERDOWN ? "blank" : "doze");
@@ -3152,6 +3158,11 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	if (r < 0)
 		goto out;
 
+	/* get GPIO resource */
+	r = goodix_ts_gpio_setup(core_data);
+	if (r < 0)
+		goto out;
+
 #ifdef CONFIG_PINCTRL
 	/* Pinctrl handle is optional. */
 	r = goodix_ts_pinctrl_init(core_data);
@@ -3163,10 +3174,6 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	}
 #endif
 
-	/* get GPIO resource */
-	r = goodix_ts_gpio_setup(core_data);
-	if (r < 0)
-		goto out;
 	/*init lock to protect suspend_stat*/
 	mutex_init(&core_data->work_stat);
 	mutex_init(&ts_device->report_mutex);
@@ -3183,6 +3190,14 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	r = goodix_start_later_init(core_data);
 	if (r) {
 		ts_info("Failed start cfg_bin_proc");
+		goto out;
+	}
+
+	core_data->power_supply_wq = alloc_workqueue("gtp-power-supply-queue",
+				WQ_UNBOUND | WQ_HIGHPRI | WQ_CPU_INTENSIVE, 1);
+	if (!core_data->power_supply_wq) {
+		ts_err("goodix cannot create power supply work thread");
+		r = -ENOMEM;
 		goto out;
 	}
 
@@ -3216,13 +3231,13 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	 * pm_qos_add_request(&core_data->tp_qos_request, PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
 	*/
 	/* is usb exit init */
-	/*
+
 	core_data->battery_psy = power_supply_get_by_name("battery");
 	if (!core_data->battery_psy) {
 		mdelay(50);
 		core_data->battery_psy = power_supply_get_by_name("battery");
 	}
-	*/
+
 	if (!core_data->battery_psy) {
 		ts_info("get battery psy failed, don't register callback for charger mode");
 	} else {
