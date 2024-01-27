@@ -35,10 +35,12 @@
 static char proc_command_line[COMMAND_LINE_SIZE];
 
 static void proc_command_line_init(void) {
+#ifdef CONFIG_INITRAMFS_IGNORE_SKIP_FLAG
+	char *offset_addr;
+#endif
 	strcpy(proc_command_line, saved_command_line);
 
 #ifdef CONFIG_INITRAMFS_IGNORE_SKIP_FLAG
-	char *offset_addr;
 	offset_addr = strstr(proc_command_line, INITRAMFS_STR_FIND);
 	if (offset_addr)
 		memcpy(offset_addr, INITRAMFS_STR_REPLACE, INITRAMFS_STR_LEN);
