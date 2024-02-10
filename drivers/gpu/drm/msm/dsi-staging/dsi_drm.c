@@ -54,6 +54,8 @@ static atomic_t prim_panel_is_on;
 static struct wakeup_source prim_panel_wakelock;
 
 struct drm_notify_data g_notify_data;
+extern void dsi_display_panel_gamma_mode_change(struct dsi_display *display,
+			struct dsi_display_mode *adj_mode);
 
 /*
  *	drm_register_client - register a client notifier
@@ -477,6 +479,9 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 		pr_err("Invalid params\n");
 		return;
 	}
+
+	if (c_bridge->display->panel->cur_mode->timing.refresh_rate == 120)
+		dsi_display_panel_gamma_mode_change(c_bridge->display, c_bridge->display->panel->cur_mode);
 
 	if (c_bridge->dsi_mode.dsi_mode_flags &
 			(DSI_MODE_FLAG_SEAMLESS | DSI_MODE_FLAG_VRR |
@@ -1243,9 +1248,6 @@ void dsi_conn_enable_event(struct drm_connector *connector,
 			event_idx, &event_info, enable);
 }
 
-extern void dsi_display_panel_gamma_mode_change(struct dsi_display *display,
-			struct dsi_display_mode *adj_mode);
-
 int dsi_conn_post_kickoff(struct drm_connector *connector,
 	struct msm_display_conn_params *params)
 {
@@ -1294,9 +1296,6 @@ int dsi_conn_post_kickoff(struct drm_connector *connector,
 				return -EINVAL;
 			}
 		}
-
-		if (adj_mode.timing.refresh_rate == 120)
-			dsi_display_panel_gamma_mode_change(display, &adj_mode);
 
 		c_bridge->dsi_mode.dsi_mode_flags &= ~DSI_MODE_FLAG_VRR;
 	}
