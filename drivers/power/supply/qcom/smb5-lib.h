@@ -229,7 +229,11 @@ enum print_reason {
 #define SOFT_JEITA_HYSTERESIS		5
 
 /* used for bq charge pump solution */
+#ifdef CONFIG_K6_CHARGE
+#define MAIN_CHARGER_ICL	500000
+#else
 #define MAIN_CHARGER_ICL	2000000
+#endif
 #define QC3_CHARGER_ICL		500000
 #define QC3P5_CHARGER_ICL	200000
 
