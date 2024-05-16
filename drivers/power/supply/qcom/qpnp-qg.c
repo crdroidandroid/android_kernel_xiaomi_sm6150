@@ -2105,6 +2105,8 @@ done:
 #define FFC_CHG_TERM_SWD_CURRENT	-600
 #define FFC_CHG_TERM_NVT_CURRENT	-550
 #define FFC_BATT_FULL_CURRENT	920000
+#define FFC_BATT_FULL_NVT_CURRENT	925000
+#define FFC_BATT_FULL_SWD_CURRENT	880000
 #else
 #define FFC_CHG_TERM_CURRENT	-830
 #define FFC_BATT_FULL_CURRENT	1150000
@@ -2153,7 +2155,17 @@ static int qg_get_ffc_iterm_for_qg(struct qpnp_qg *chip)
 			ffc_full_current = LOW_TEMP_FFC_BATT_FULL_CURRENT;
 		}
 	} else {
+#ifdef CONFIG_K6_CHARGE
+		if (is_batt_vendor_nvt){
+			ffc_full_current = FFC_BATT_FULL_NVT_CURRENT;
+			pr_err("ffc_FULL_current nvt is 925\n", rc);
+		}else{
+			ffc_full_current = FFC_BATT_FULL_SWD_CURRENT;
+			pr_err("ffc_FULL_current swd is 880\n", rc);
+		}
+#else
 		ffc_full_current = FFC_BATT_FULL_CURRENT;
+#endif
 	}
 	pr_info("ffc_full_current = %d\n", ffc_full_current);
 
@@ -3638,6 +3650,12 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 		return rc;
 	}
 #endif
+#ifdef CONFIG_K6_CHARGE
+	pr_err("is_batt_vendor_swd is %d\n", is_batt_vendor_swd);
+	profile_node = of_batterydata_get_best_profile(chip->batt_node,
+				chip->batt_id_ohm / 1000, "K6_sunwoda_5020mah");
+#endif
+
 	rc = of_property_read_string(profile_node, "qcom,battery-type",
 				&chip->bp.batt_type_str);
 	if (rc < 0) {
