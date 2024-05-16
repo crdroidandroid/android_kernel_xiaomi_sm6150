@@ -183,6 +183,13 @@ static struct power_supply *cp_get_fc_psy(void)
 			pm_state.fc_psy = power_supply_get_by_name("bq2597x-master");
 		else
 			pm_state.fc_psy = power_supply_get_by_name("bq2597x-standalone");
+
+		if (!pm_state.fc_psy)
+		{
+			pm_state.fc_psy = power_supply_get_by_name("ln8000");
+			if (!pm_state.fc_psy)
+				pr_err("cp_psy not found\n");
+		}
 	}
 
 	return pm_state.fc_psy;
@@ -1091,7 +1098,13 @@ void cp_statemachine(unsigned int port)
 		} else {
 			pr_err("vvbus:%d, tuned above expected voltage, retry_times:%d\n",
 					pm_state.bq2597x.vbus_volt, tune_vbus_retry);
-			cp_move_state(CP_STATE_FLASH2_ENTRY_3);
+			if (pm_state.usb_type == POWER_SUPPLY_TYPE_USB_HVDCP_3 && pm_state.bq2597x.vbus_volt > 11000) {
+				cp_move_state(CP_STATE_SW_ENTRY);
+				cp_limit_sw(false);
+				cp_set_fake_hvdcp3(true);
+			} else {
+				cp_move_state(CP_STATE_FLASH2_ENTRY_3);
+			}
 			break;
 		}
 
@@ -1217,6 +1230,9 @@ static void cp_workfunc(struct work_struct *work)
 	if (pm_state.usb_present == 0) {
 		cp_set_qc_bus_protections(HVDCP3_NONE);
 		cp_set_fake_hvdcp3(false);
+#ifdef CONFIG_K6_CHARGE
+		pm_state.state = CP_STATE_DISCONNECT;
+#endif
 		return;
 	}
 
