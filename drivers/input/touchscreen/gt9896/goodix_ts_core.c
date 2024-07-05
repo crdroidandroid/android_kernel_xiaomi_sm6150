@@ -2642,7 +2642,7 @@ static ssize_t goodix_data_dump_read(struct file *file, char __user *buf,
 	ret = goodix_tools_register();
 	if (ret) {
 		ts_err("tp_rawdata prepare goodix_tools_register failed");
-		cnt = snprintf(v_buf, 6, "-EIO\t\n");
+		cnt = snprintf(v_buf, sizeof(v_buf), "-EIO\t\n");
 		goto out;
 	}
 	ts_info("start get rawdata!");
