@@ -737,7 +737,7 @@ static ssize_t goodix_ts_tp_get_testcfg_show(struct device *dev,
 	if (ret) {
 		ret = 0;
 		ts_err("tp_rawdata prepare goodix_tools_register failed");
-		r = snprintf(buf, 6, "-EIO\t\n");
+		r = snprintf(buf, sizeof(buf), "-EIO\t\n");
 		if (r < 0)
 			return -EINVAL;
 		return 4;	/*sizeof("-EIO") */
