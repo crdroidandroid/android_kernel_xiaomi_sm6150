@@ -3164,6 +3164,13 @@ static void qg_status_change_work(struct work_struct *work)
 		goto out;
 	}
 
+	if (!chip->usb_psy) {
+		chip->usb_psy = power_supply_get_by_name("usb");
+		if (!chip->usb_psy) {
+			pr_err("Failed to get usb_psy\n");
+		}
+	}
+
 	rc = qg_battery_status_update(chip);
 	if (rc < 0)
 		pr_err("Failed to process battery status update rc=%d\n", rc);
@@ -3179,8 +3186,16 @@ static void qg_status_change_work(struct work_struct *work)
 			POWER_SUPPLY_PROP_STATUS, &prop);
 	if (rc < 0)
 		pr_err("Failed to get charger status, rc=%d\n", rc);
-	else
+	else {
+		if (chip->charge_status != prop.intval) {
+			pr_err("%s last_status:%d, curr_status:%d\n", __func__, chip->charge_status, prop.intval);
+			if (chip->usb_psy) {
+				msleep(200);
+				power_supply_changed(chip->usb_psy);
+			}
+		}
 		chip->charge_status = prop.intval;
+	}
 
 	rc = power_supply_get_property(chip->batt_psy,
 			POWER_SUPPLY_PROP_CHARGE_DONE, &prop);
