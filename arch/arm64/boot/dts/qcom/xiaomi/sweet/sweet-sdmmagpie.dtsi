@@ -494,7 +494,6 @@ And public attribution of xiaomi platforms(like F3 and so and)
 				   3200000 3100000 2800000 2600000 2400000 2200000 2000000
 				   1000000 700000>;
 	dpdm-supply = <&qusb_phy0>;
-	qcom,reg-dump-enable;
 	qcom,sw-jeita-enable;
 	qcom,step-charging-enable;
 	qcom,distinguish-qc-class-ab;
