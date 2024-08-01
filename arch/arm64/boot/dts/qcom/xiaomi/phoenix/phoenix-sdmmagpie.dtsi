@@ -282,7 +282,6 @@
 				   3800000 3800000 3600000 3400000 3200000 3000000 2200000
 				   800000 700000>;
 	dpdm-supply = <&qusb_phy0>;
-	qcom,reg-dump-enable;
 	qcom,temp-battery-id;
 	qcom,temp-27W-enable;
 	qcom,sw-jeita-enable;
