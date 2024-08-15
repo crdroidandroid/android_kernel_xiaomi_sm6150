@@ -552,13 +552,17 @@ static unsigned char aw8624_haptic_set_level(struct aw8624 *aw8624, int gain)
 static int aw8624_haptic_set_gain(struct aw8624 *aw8624, unsigned char gain)
 {
 	unsigned char comp_gain = 0;
-	if (aw8624->ram_vbat_comp == AW8624_HAPTIC_RAM_VBAT_COMP_ENABLE)
+	unsigned char max_gain = 0;
+
+	if (aw8624->ram_vbat_comp == AW8624_HAPTIC_RAM_VBAT_COMP_ENABLE &&
+			aw8624->info.gain_flag != 1)
 	{
 		aw8624_haptic_get_vbat(aw8624);
 
 		comp_gain = gain * AW8624_VBAT_REFER / aw8624->vbat;
-		if (comp_gain > (128 * AW8624_VBAT_REFER / AW8624_VBAT_MIN)) {
-			comp_gain = 128 * AW8624_VBAT_REFER / AW8624_VBAT_MIN;
+        max_gain = 128 * AW8624_VBAT_REFER / AW8624_VBAT_MIN;
+		if (comp_gain > max_gain) {
+			comp_gain = max_gain;
 		}
 		aw8624_i2c_write(aw8624, AW8624_REG_DATDBG, aw8624_haptic_set_level(aw8624, comp_gain));
 	} else {
@@ -967,8 +971,7 @@ static int aw8624_haptic_play_effect_seq(struct aw8624 *aw8624,
 			aw8624_haptic_effect_strength(aw8624);
 			aw8624_haptic_set_gain(aw8624, aw8624->level);
 			aw8624_haptic_start(aw8624);
-		}
-		if (aw8624->activate_mode ==
+		} else if (aw8624->activate_mode ==
 		    AW8624_HAPTIC_ACTIVATE_RAM_LOOP_MODE) {
 			aw8624_haptic_set_repeat_wav_seq(aw8624,
 							 (aw8624->info.
@@ -2536,6 +2539,8 @@ static int aw8624_haptics_upload_effect(struct input_dev *dev,
 
 		aw8624->effect_id = data[0];
 		play->vmax_mv = effect->u.periodic.magnitude;	/*vmax level */
+		if (aw8624->info.gain_flag == 1)
+			play->vmax_mv = AW8624_STRONG_MAGNITUDE;
 
 		if (aw8624->effect_id < 0 ||
 		    aw8624->effect_id > aw8624->info.effect_max) {
@@ -2635,7 +2640,7 @@ static void aw8624_haptics_set_gain_work_routine(struct work_struct *work)
 		aw8624->level = 0x1E;	/*30 */
 
 	if (aw8624->ram_vbat_comp == AW8624_HAPTIC_RAM_VBAT_COMP_ENABLE
-		&& aw8624->vbat)
+		&& aw8624->vbat && aw8624->info.gain_flag != 1)
 	{
 		comp_level = aw8624->level * AW8624_VBAT_REFER / aw8624->vbat;
 		if (comp_level > (128 * AW8624_VBAT_REFER / AW8624_VBAT_MIN)) {
