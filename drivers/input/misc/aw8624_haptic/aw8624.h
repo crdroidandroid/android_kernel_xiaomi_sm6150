@@ -343,6 +343,7 @@ struct aw8624 {
 
 	unsigned char auto_boost;
 	unsigned char wk_lock_flag;
+	unsigned char irq_sts_flag;
 
 	int state;
 	int duration;
