@@ -386,10 +386,18 @@ aw8624_haptic_play_mode(struct aw8624 *aw8624, unsigned char play_mode)
 	switch (play_mode) {
 	case AW8624_HAPTIC_STANDBY_MODE:
 		aw8624->play_mode = AW8624_HAPTIC_STANDBY_MODE;
+		aw8624_i2c_write_bits(aw8624, AW8624_REG_SYSINTM,
+                                      AW8624_BIT_SYSINTM_UVLO_MASK,
+                                      AW8624_BIT_SYSINTM_UVLO_OFF);
 		aw8624_i2c_write_bits(aw8624,
 				      AW8624_REG_SYSCTRL,
 				      AW8624_BIT_SYSCTRL_WORK_MODE_MASK,
 				      AW8624_BIT_SYSCTRL_STANDBY);
+		/* ensure aw8624 in trig enable */
+		aw8624_i2c_write_bits(aw8624,
+			              AW8624_REG_DBGCTRL,
+				      AW8624_BIT_DBGCTRL_INTN_TRG_SEL_MASK,
+				      AW8624_BIT_DBGCTRL_TRG_SEL_ENABLE);
 		break;
 	case AW8624_HAPTIC_RAM_MODE:
 		aw8624->play_mode = AW8624_HAPTIC_RAM_MODE;
@@ -436,6 +444,13 @@ aw8624_haptic_play_mode(struct aw8624 *aw8624, unsigned char play_mode)
 			__func__, play_mode);
 		break;
 	}
+	if (aw8624->irq_sts_flag && (play_mode == AW8624_HAPTIC_STANDBY_MODE) ) {
+		disable_irq(gpio_to_irq(aw8624->irq_gpio));
+		aw8624->irq_sts_flag = 0;
+	} else if (!aw8624->irq_sts_flag && (play_mode != AW8624_HAPTIC_STANDBY_MODE) ) {
+		enable_irq(gpio_to_irq(aw8624->irq_gpio));
+		aw8624->irq_sts_flag = 1;
+	}
 	return 0;
 }
 
@@ -471,7 +486,6 @@ static int aw8624_haptic_stop_delay(struct aw8624 *aw8624)
 
 static int aw8624_haptic_stop(struct aw8624 *aw8624)
 {
-
 	aw8624_haptic_play_go(aw8624, false);
 	aw8624_haptic_stop_delay(aw8624);
 	aw8624_haptic_play_mode(aw8624, AW8624_HAPTIC_STANDBY_MODE);
@@ -875,7 +889,10 @@ static int aw8624_haptic_rtp_init(struct aw8624 *aw8624)
 	pm_qos_add_request(&pm_qos_req_vb, PM_QOS_CPU_DMA_LATENCY,
 			   PM_QOS_VALUE_VB);
 	aw8624->rtp_cnt = 0;
-	disable_irq(gpio_to_irq(aw8624->irq_gpio));
+	if (aw8624->irq_sts_flag) {
+		disable_irq(gpio_to_irq(aw8624->irq_gpio));
+		aw8624->irq_sts_flag = 0;
+	}
 	while ((!aw8624_haptic_rtp_get_fifo_afs(aw8624)) &&
 	       (aw8624->play_mode == AW8624_HAPTIC_RTP_MODE) &&
 	       !atomic_read(&aw8624->exit_in_rtp_loop)) {
@@ -905,7 +922,10 @@ static int aw8624_haptic_rtp_init(struct aw8624 *aw8624)
 			break;
 		}
 	}
-	enable_irq(gpio_to_irq(aw8624->irq_gpio));
+	if (!aw8624->irq_sts_flag) {
+		enable_irq(gpio_to_irq(aw8624->irq_gpio));
+		aw8624->irq_sts_flag = 1;
+	}
 	if (aw8624->play_mode == AW8624_HAPTIC_RTP_MODE
 	    && !atomic_read(&aw8624->exit_in_rtp_loop)) {
 		aw8624_haptic_set_rtp_aei(aw8624, true);
@@ -1106,7 +1126,10 @@ static int aw8624_rtp_osc_calibration(struct aw8624 *aw8624)
 			      AW8624_BIT_DBGCTRL_INTN_TRG_SEL_MASK,
 			      AW8624_BIT_DBGCTRL_INTN_SEL_ENABLE);
 
-	disable_irq(gpio_to_irq(aw8624->irq_gpio));
+	if (aw8624->irq_sts_flag) {
+		disable_irq(gpio_to_irq(aw8624->irq_gpio));
+		aw8624->irq_sts_flag = 0;
+	}
 	/* haptic start */
 	aw8624_haptic_start(aw8624);
 	pm_qos_add_request(&pm_qos_req_vb, PM_QOS_CPU_DMA_LATENCY,
@@ -1147,8 +1170,10 @@ static int aw8624_rtp_osc_calibration(struct aw8624 *aw8624)
 		}
 	}
 	pm_qos_remove_request(&pm_qos_req_vb);
-	enable_irq(gpio_to_irq(aw8624->irq_gpio));
-
+	if (!aw8624->irq_sts_flag) {
+		enable_irq(gpio_to_irq(aw8624->irq_gpio));
+		aw8624->irq_sts_flag = 1;
+	}
 	aw8624->osc_cali_flag = 0;
 	aw8624->microsecond =
 	    (aw8624->end.tv_sec - aw8624->start.tv_sec) * 1000000 +
@@ -1728,6 +1753,9 @@ static ssize_t aw8624_file_write(struct file *filp, const char *buff,
 	ret = copy_from_user(pbuff, buff, len);
 	if (ret) {
 		dev_err(aw8624->dev, "%s: copy from user fail\n", __func__);
+		if (pbuff != NULL) {
+			kfree(pbuff);
+		}
 		return len;
 	}
 
@@ -1932,6 +1960,26 @@ static enum hrtimer_restart aw8624_vibrator_timer_func(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
+static void aw8624_haptic_set_ram_donei(struct aw8624 *aw8624, bool flag)
+{
+	if (flag) {
+		/* ensure aw8624 in intn enable */
+		aw8624_i2c_write_bits(aw8624, AW8624_REG_DBGCTRL,
+			AW8624_BIT_DBGCTRL_INTN_TRG_SEL_MASK,
+			AW8624_BIT_DBGCTRL_INTN_SEL_ENABLE);
+		aw8624_i2c_write_bits(aw8624, AW8624_REG_SYSINTM,
+			AW8624_BIT_SYSINTM_DONE_MASK,
+			AW8624_BIT_SYSINTM_DONE_EN);
+	} else {
+		aw8624_i2c_write_bits(aw8624, AW8624_REG_SYSINTM,
+			AW8624_BIT_SYSINTM_FF_AE_MASK,
+			AW8624_BIT_SYSINTM_DONE_OFF);
+		aw8624_i2c_write_bits(aw8624, AW8624_REG_DBGCTRL,
+			AW8624_BIT_DBGCTRL_INTN_TRG_SEL_MASK,
+			AW8624_BIT_DBGCTRL_TRG_SEL_ENABLE);
+	}
+}
+
 static void aw8624_vibrator_work_routine(struct work_struct *work)
 {
 	struct aw8624 *aw8624 =
@@ -1944,6 +1992,7 @@ static void aw8624_vibrator_work_routine(struct work_struct *work)
 		if (aw8624->activate_mode == AW8624_HAPTIC_ACTIVATE_RAM_MODE) {
 			aw8624_haptic_ram_vbat_comp(aw8624, false);
 			/* enable donei */
+			aw8624_haptic_set_ram_donei(aw8624, true);
 			aw8624_haptic_play_effect_seq(aw8624, true);
 		} else if (aw8624->activate_mode ==
 			   AW8624_HAPTIC_ACTIVATE_RAM_LOOP_MODE) {
@@ -1974,7 +2023,6 @@ static void aw8624_vibrator_work_routine(struct work_struct *work)
 
 static int aw8624_vibrator_init(struct aw8624 *aw8624)
 {
-
 	hrtimer_init(&aw8624->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	aw8624->timer.function = aw8624_vibrator_timer_func;
 	INIT_WORK(&aw8624->vibrator_work, aw8624_vibrator_work_routine);
@@ -2006,6 +2054,9 @@ static void aw8624_interrupt_setup(struct aw8624 *aw8624)
 
 	aw8624_i2c_read(aw8624, AW8624_REG_SYSINT, &reg_val);
 
+	aw8624_i2c_write_bits(aw8624, AW8624_REG_DBGCTRL,
+		              AW8624_BIT_DBGCTRL_INTMODE_MASK,
+		              AW8624_BIT_DBGCTRL_INTN_EDGE_MODE);
 	aw8624_i2c_write_bits(aw8624, AW8624_REG_SYSINTM,
 			      AW8624_BIT_SYSINTM_UVLO_MASK,
 			      AW8624_BIT_SYSINTM_UVLO_EN);
@@ -2022,6 +2073,7 @@ static irqreturn_t aw8624_irq(int irq, void *data)
 	struct aw8624 *aw8624 = data;
 	unsigned char reg_val = 0;
 	unsigned char dbg_val = 0;
+	unsigned char glb_st = 0;
 	unsigned int buf_len = 0;
 
 	atomic_set(&aw8624->is_in_rtp_loop, 1);
@@ -2040,6 +2092,21 @@ static irqreturn_t aw8624_irq(int irq, void *data)
 	if (reg_val & AW8624_BIT_SYSINT_OTI) {
 		pr_err("%s: chip over temperature int error\n", __func__);
 	}
+	if (reg_val & AW8624_BIT_SYSINT_DONEI) {
+		pr_info("%s chip playback done\n", __func__);
+		/* mask donei */
+		aw8624_haptic_set_ram_donei(aw8624, false);
+	}
+	if (reg_val & AW8624_BIT_SYSINT_UVLI) {
+		aw8624_i2c_read(aw8624, AW8624_REG_GLB_STATE, &glb_st);
+		if (glb_st == 0) {
+			aw8624_i2c_write_bits(aw8624,
+			AW8624_REG_SYSINTM,
+			AW8624_BIT_SYSINTM_UVLO_MASK,
+			AW8624_BIT_SYSINTM_UVLO_OFF);
+		}
+	}
+
 	if (reg_val & AW8624_BIT_SYSINT_FF_AEI) {
 		if (aw8624->rtp_init) {
 			while ((!aw8624_haptic_rtp_get_fifo_afs(aw8624)) &&
@@ -2073,9 +2140,6 @@ static irqreturn_t aw8624_irq(int irq, void *data)
 				mutex_unlock(&aw8624->rtp_lock);
 			}
 		}
-	}
-
-	if (reg_val & AW8624_BIT_SYSINT_FF_AFI) {
 	}
 
 	if (aw8624->play_mode != AW8624_HAPTIC_RTP_MODE
@@ -2575,6 +2639,8 @@ static void aw8624_haptics_set_gain_work_routine(struct work_struct *work)
 			comp_level = 128 * AW8624_VBAT_REFER / AW8624_VBAT_MIN;
 		}
 		aw8624_i2c_write(aw8624, AW8624_REG_DATDBG, aw8624_haptic_set_level(aw8624, comp_level));
+	} else {
+		aw8624_i2c_write(aw8624, AW8624_REG_DATDBG, aw8624_haptic_set_level(aw8624, aw8624->level));
 	}
 }
 
@@ -2674,7 +2740,6 @@ static int select_pin_ctl(struct aw8624 *aw8624, const char *name)
 		if (!strncmp(n, name, strlen(n))) {
 			rc = pinctrl_select_state(aw8624->aw8624_pinctrl,
 						  aw8624->pinctrl_state[i]);
-			if (rc)
 			goto exit;
 		}
 	}
@@ -3869,6 +3934,7 @@ aw8624_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 						gpio_to_irq(aw8624->irq_gpio),
 						NULL, aw8624_irq, irq_flags,
 						"aw8624", aw8624);
+		aw8624->irq_sts_flag = 1;
 		if (ret != 0) {
 			dev_err(&i2c->dev, "%s: failed to request IRQ %d: %d\n",
 				__func__, gpio_to_irq(aw8624->irq_gpio), ret);
