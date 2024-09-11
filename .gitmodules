@@ -1,4 +1,0 @@
-[submodule "KernelSU"]
-	path = KernelSU
-	url = https://github.com/meloalfa159/KernelSU/
-	branch = main
