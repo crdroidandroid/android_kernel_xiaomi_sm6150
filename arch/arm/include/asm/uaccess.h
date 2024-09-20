@@ -162,7 +162,7 @@ extern int __get_user_64t_4(void *);
 		__asmbl("", "ip", "__get_user_" #__s)			\
 		: "=&r" (__e), "=r" (__r2)				\
 		: "0" (__p), "r" (__l)					\
-		: __GUP_CLOBBER_##__s)
+		: "ip", "lr", "cc")
 
 /* narrowing a double-word get into a single 32bit word register: */
 #ifdef __ARMEB__
@@ -184,7 +184,7 @@ extern int __get_user_64t_4(void *);
 		__asmbl("", "ip", "__get_user_64t_" #__s)		\
 		: "=&r" (__e), "=r" (__r2)				\
 		: "0" (__p), "r" (__l)					\
-		: __GUP_CLOBBER_##__s)
+		: "ip", "lr", "cc")
 #else
 #define __get_user_x_64t __get_user_x
 #endif
