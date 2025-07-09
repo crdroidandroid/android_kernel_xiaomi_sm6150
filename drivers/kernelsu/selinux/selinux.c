@@ -45,7 +45,7 @@ static int transive_to_domain(const char *domain)
 	return error;
 }
 
-void ksu_setup_selinux(const char *domain)
+void setup_selinux(const char *domain)
 {
 	if (transive_to_domain(domain)) {
 		pr_err("transive domain failed.\n");
@@ -60,7 +60,7 @@ if (!is_domain_permissive) {
 }*/
 }
 
-void ksu_setenforce(bool enforce)
+void setenforce(bool enforce)
 {
 #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
 #ifdef KSU_COMPAT_USE_SELINUX_STATE
@@ -71,7 +71,7 @@ void ksu_setenforce(bool enforce)
 #endif
 }
 
-bool ksu_getenforce()
+bool getenforce()
 {
 #ifdef CONFIG_SECURITY_SELINUX_DISABLE
 #ifdef KSU_COMPAT_USE_SELINUX_STATE
@@ -107,7 +107,7 @@ static inline u32 current_sid(void)
 }
 #endif
 
-bool ksu_is_ksu_domain()
+bool is_ksu_domain()
 {
 	char *domain;
 	u32 seclen;
@@ -121,7 +121,7 @@ bool ksu_is_ksu_domain()
 	return result;
 }
 
-bool ksu_is_zygote(void *sec)
+bool is_zygote(void *sec)
 {
 	struct task_security_struct *tsec = (struct task_security_struct *)sec;
 	if (!tsec) {

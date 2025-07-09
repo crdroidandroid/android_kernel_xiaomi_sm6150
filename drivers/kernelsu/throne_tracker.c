@@ -148,6 +148,12 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
 	if (!strncmp(name, "..", namelen) || !strncmp(name, ".", namelen))
 		return FILLDIR_ACTOR_CONTINUE; // Skip "." and ".."
 
+	if (d_type == DT_DIR && namelen >= 8 && !strncmp(name, "vmdl", 4) &&
+	    !strncmp(name + namelen - 4, ".tmp", 4)) {
+		pr_info("Skipping directory: %.*s\n", namelen, name);
+		return FILLDIR_ACTOR_CONTINUE; // Skip staging package
+	}
+
 	if (snprintf(dirpath, DATA_PATH_LEN, "%s/%.*s", my_ctx->parent_dir,
 		     namelen, name) >= DATA_PATH_LEN) {
 		pr_err("Path too long: %s/%.*s\n", my_ctx->parent_dir, namelen,
@@ -164,7 +170,11 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
 			return FILLDIR_ACTOR_CONTINUE;
 		}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
+		strlcpy(data->dirpath, dirpath, DATA_PATH_LEN);
+#else
 		strscpy(data->dirpath, dirpath, DATA_PATH_LEN);
+#endif
 		data->depth = my_ctx->depth - 1;
 		list_add_tail(&data->list, my_ctx->data_path_list);
 	} else {
@@ -182,7 +192,7 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
 				}
 			}
 
-			bool is_manager = ksu_is_manager_apk(dirpath);
+			bool is_manager = is_manager_apk(dirpath);
 			pr_info("Found new base.apk at path: %s, is_manager: %d\n",
 				dirpath, is_manager);
 			if (is_manager) {
@@ -206,12 +216,53 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
 	return FILLDIR_ACTOR_CONTINUE;
 }
 
+/*
+ * small helper to check if lock is held
+ * false - file is stable
+ * true - file is being deleted/renamed
+ * possibly optional
+ *
+ */
+bool is_lock_held(const char *path) 
+{
+	struct path kpath;
+
+	// kern_path returns 0 on success
+	if (kern_path(path, 0, &kpath))
+		return true;
+
+	// just being defensive
+	if (!kpath.dentry) {
+		path_put(&kpath);
+		return true;
+	}
+
+	if (!spin_trylock(&kpath.dentry->d_lock)) {
+		pr_info("%s: lock held, bail out!\n", __func__);
+		path_put(&kpath);
+		return true;
+	}
+	// we hold it ourselves here!
+
+	spin_unlock(&kpath.dentry->d_lock);
+	path_put(&kpath);
+	return false;
+}
+
+// compat: https://elixir.bootlin.com/linux/v3.9/source/include/linux/fs.h#L771
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0)
+#define S_MAGIC_COMPAT(x) ((x)->f_inode->i_sb->s_magic)
+#else
+#define S_MAGIC_COMPAT(x) ((x)->f_path.dentry->d_inode->i_sb->s_magic)
+#endif
+
 void search_manager(const char *path, int depth, struct list_head *uid_data)
 {
 	int i, stop = 0;
 	struct list_head data_path_list;
 	INIT_LIST_HEAD(&data_path_list);
-
+	unsigned long data_app_magic = 0;
+	
 	// Initialize APK cache list
 	struct apk_path_hash *pos, *n;
 	list_for_each_entry(pos, &apk_path_hash_list, list) {
@@ -220,11 +271,15 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 
 	// First depth
 	struct data_path data;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
+	strlcpy(data.dirpath, path, DATA_PATH_LEN);
+#else
 	strscpy(data.dirpath, path, DATA_PATH_LEN);
+#endif
 	data.depth = depth;
 	list_add_tail(&data.list, &data_path_list);
 
-	for (i = depth; i > 0; i--) {
+	for (i = depth; i >= 0; i--) {
 		struct data_path *pos, *n;
 
 		list_for_each_entry_safe(pos, n, &data_path_list, list) {
@@ -240,6 +295,24 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 				file = ksu_filp_open_compat(pos->dirpath, O_RDONLY | O_NOFOLLOW, 0);
 				if (IS_ERR(file)) {
 					pr_err("Failed to open directory: %s, err: %ld\n", pos->dirpath, PTR_ERR(file));
+					goto skip_iterate;
+				}
+				
+				// grab magic on first folder, which is /data/app
+				if (!data_app_magic) {
+					if (S_MAGIC_COMPAT(file)) {
+						data_app_magic = S_MAGIC_COMPAT(file);
+						pr_info("%s: dir: %s got magic! 0x%lx\n", __func__, pos->dirpath, data_app_magic);
+					} else {
+						filp_close(file, NULL);
+						goto skip_iterate;
+					}
+				}
+				
+				if (S_MAGIC_COMPAT(file) != data_app_magic) {
+					pr_info("%s: skip: %s magic: 0x%lx expected: 0x%lx\n", __func__, pos->dirpath, 
+						S_MAGIC_COMPAT(file), data_app_magic);
+					filp_close(file, NULL);
 					goto skip_iterate;
 				}
 
@@ -278,15 +351,27 @@ static bool is_uid_exist(uid_t uid, char *package, void *data)
 	return exist;
 }
 
-void ksu_track_throne()
+void track_throne()
 {
-	struct file *fp =
-		ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
+	struct file *fp;
+	int tries = 0;
+
+	while (tries++ < 10) {
+		if (!is_lock_held(SYSTEM_PACKAGES_LIST_PATH)) {
+			fp = ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
+			if (!IS_ERR(fp)) 
+				break;
+		}
+		
+		pr_info("%s: waiting for %s\n", __func__, SYSTEM_PACKAGES_LIST_PATH);
+		msleep(100); // migth as well add a delay
+	};
+	
 	if (IS_ERR(fp)) {
-		pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %ld\n",
-		       __func__, PTR_ERR(fp));
+		pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %ld\n", __func__, PTR_ERR(fp));
 		return;
-	}
+	} else
+		pr_info("%s: %s found!\n", __func__, SYSTEM_PACKAGES_LIST_PATH);
 
 	struct list_head uid_list;
 	INIT_LIST_HEAD(&uid_list);
@@ -355,12 +440,14 @@ void ksu_track_throne()
 		if (ksu_is_manager_uid_valid()) {
 			pr_info("manager is uninstalled, invalidate it!\n");
 			ksu_invalidate_manager_uid();
+			goto prune;
 		}
 		pr_info("Searching manager...\n");
 		search_manager("/data/app", 2, &uid_list);
 		pr_info("Search manager finished\n");
 	}
 
+prune:
 	// then prune the allowlist
 	ksu_prune_allowlist(is_uid_exist, &uid_list);
 out:

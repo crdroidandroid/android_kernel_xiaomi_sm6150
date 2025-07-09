@@ -1,5 +1,3 @@
-menu "KernelSU"
-
 config KSU
 	tristate "KernelSU function support"
 	depends on OVERLAY_FS
@@ -8,6 +6,14 @@ config KSU
 	  Enable kernel-level root privileges on Android System.
 	  To compile as a module, choose M here: the
 	  module will be called kernelsu.
+
+config KSU_KPROBES_HOOK
+	bool "Use kprobes for kernelsu"
+	depends on KSU
+	depends on KPROBES
+	default y
+	help
+	  Disable if you use manual hooks.
 
 config KSU_DEBUG
 	bool "KernelSU debug mode"
@@ -166,6 +172,12 @@ config KSU_SUSFS_SUS_SU
                 the same as the su implementaion of non-gki kernel without kprobe supported.
       - Only apps with root access granted by ksu manager are allowed to get root.
 
-endmenu
+config KSU_LSM_SECURITY_HOOKS
+	bool "use lsm security hooks"
+        depends on KSU
+        default y
+	help
+	  Disabling this is mostly only useful for kernel 4.1 and older.
+	  Make sure to implement manual hooks on security/security.c.
 
 endmenu

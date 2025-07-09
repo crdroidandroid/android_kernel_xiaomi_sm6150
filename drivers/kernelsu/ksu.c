@@ -41,7 +41,7 @@ extern void ksu_sucompat_exit();
 extern void ksu_ksud_init();
 extern void ksu_ksud_exit();
 
-int __init ksu_kernelsu_init(void)
+int __init kernelsu_init(void)
 {
 #ifdef CONFIG_KSU_DEBUG
 	pr_alert("*************************************************************");
@@ -65,7 +65,7 @@ int __init ksu_kernelsu_init(void)
 
 	ksu_throne_tracker_init();
 
-#ifdef CONFIG_KPROBES
+#ifdef CONFIG_KSU_KPROBES_HOOK
 	ksu_sucompat_init();
 	ksu_ksud_init();
 #else
@@ -80,7 +80,7 @@ int __init ksu_kernelsu_init(void)
 	return 0;
 }
 
-void ksu_kernelsu_exit(void)
+void kernelsu_exit(void)
 {
 	ksu_allowlist_exit();
 
@@ -88,7 +88,7 @@ void ksu_kernelsu_exit(void)
 
 	destroy_workqueue(ksu_workqueue);
 
-#ifdef CONFIG_KPROBES
+#ifdef CONFIG_KSU_KPROBES_HOOK
 	ksu_ksud_exit();
 	ksu_sucompat_exit();
 #endif
@@ -96,8 +96,8 @@ void ksu_kernelsu_exit(void)
 	ksu_core_exit();
 }
 
-module_init(ksu_kernelsu_init);
-module_exit(ksu_kernelsu_exit);
+module_init(kernelsu_init);
+module_exit(kernelsu_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("weishu");

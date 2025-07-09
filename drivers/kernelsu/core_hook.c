@@ -7,7 +7,9 @@
 #include <linux/kallsyms.h>
 #include <linux/kernel.h>
 #include <linux/kprobes.h>
+#ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
 #include <linux/lsm_hooks.h>
+#endif
 #include <linux/mm.h>
 #include <linux/nsproxy.h>
 #include <linux/path.h>
@@ -56,7 +58,7 @@
 #ifdef CONFIG_KSU_SUSFS
 bool susfs_is_allow_su(void)
 {
-	if (ksu_is_manager()) {
+	if (is_manager()) {
 		// we are manager, allow!
 		return true;
 	}
@@ -122,11 +124,15 @@ extern bool susfs_is_sus_su_ready;
 
 static bool ksu_module_mounted = false;
 
-extern int ksu_handle_sepolicy(unsigned long arg3, void __user *arg4);
+extern int handle_sepolicy(unsigned long arg3, void __user *arg4);
+
+static bool ksu_su_compat_enabled = true;
+extern void ksu_sucompat_init();
+extern void ksu_sucompat_exit();
 
 static inline bool is_allow_su()
 {
-	if (ksu_is_manager()) {
+	if (is_manager()) {
 		// we are manager, allow!
 		return true;
 	}
@@ -183,6 +189,7 @@ static void setup_groups(struct root_profile *profile, struct cred *cred)
 
 	groups_sort(group_info);
 	set_groups(cred, group_info);
+	put_group_info(group_info);
 }
 
 static void disable_seccomp(void)
@@ -203,31 +210,21 @@ static void disable_seccomp(void)
 #endif
 }
 
-void ksu_escape_to_root(void)
+void escape_to_root(void)
 {
 	struct cred *cred;
 
-#ifdef KSU_GET_CRED_RCU
-	rcu_read_lock();
-
-	do {
-		cred = (struct cred *)__task_cred((current));
-		BUG_ON(!cred);
-	} while (!get_cred_rcu(cred));
+	cred = prepare_creds();
+	if (!cred) {
+		pr_warn("prepare_creds failed!\n");
+		return;
+	}
 
 	if (cred->euid.val == 0) {
 		pr_warn("Already root, don't escape!\n");
-		rcu_read_unlock();
+		abort_creds(cred);
 		return;
 	}
-#else
-	cred = (struct cred *)__task_cred(current);
-
-	if (cred->euid.val == 0) {
-		pr_warn("Already root, don't escape!\n");
-		return;
-	}
-#endif
 
 	struct root_profile *profile = ksu_get_root_profile(cred->uid.val);
 
@@ -262,10 +259,8 @@ void ksu_escape_to_root(void)
 			sizeof(cred->cap_ambient));
 
 	setup_groups(profile, cred);
-	
-#ifdef KSU_GET_CRED_RCU
-	rcu_read_unlock();
-#endif
+
+	commit_creds(cred);
 
 	// Refer to kernel/seccomp.c: seccomp_set_mode_strict
 	// When disabling Seccomp, ensure that current->sighand->siglock is held during the operation.
@@ -273,7 +268,7 @@ void ksu_escape_to_root(void)
 	disable_seccomp();
 	spin_unlock_irq(&current->sighand->siglock);
 
-	ksu_setup_selinux(profile->selinux_domain);
+	setup_selinux(profile->selinux_domain);
 }
 
 int ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
@@ -310,9 +305,29 @@ int ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
 	pr_info("renameat: %s -> %s, new path: %s\n", old_dentry->d_iname,
 		new_dentry->d_iname, buf);
 
-	ksu_track_throne();
+	track_throne();
 
 	return 0;
+}
+
+static void nuke_ext4_sysfs() {
+	struct path path;
+	int err = kern_path("/data/adb/modules", 0, &path);
+	if (err) {
+		pr_err("nuke path err: %d\n", err);
+		return;
+	}
+
+	struct super_block* sb = path.dentry->d_inode->i_sb;
+	const char* name = sb->s_type->name;
+	if (strcmp(name, "ext4") != 0) {
+		pr_info("nuke but module aren't mounted\n");
+		path_put(&path);
+		return;
+	}
+
+	ext4_unregister_sysfs(sb);
+	path_put(&path);
 }
 
 int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
@@ -335,7 +350,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 	}
 
 	bool from_root = 0 == current_uid().val;
-	bool from_manager = ksu_is_manager();
+	bool from_manager = is_manager();
 
 	if (!from_root && !from_manager) {
 		// only root or manager can access this interface
@@ -359,7 +374,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 	if (arg2 == CMD_GRANT_ROOT) {
 		if (is_allow_su()) {
 			pr_info("allow root for: %d\n", current_uid().val);
-			ksu_escape_to_root();
+			escape_to_root();
 			if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
 				pr_err("grant_root: prctl reply error\n");
 			}
@@ -373,13 +388,36 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 		if (copy_to_user(arg3, &version, sizeof(version))) {
 			pr_err("prctl reply error, cmd: %lu\n", arg2);
 		}
+		u32 version_flags = 0;
 #ifdef MODULE
-		u32 is_lkm = 0x1;
-#else
-		u32 is_lkm = 0x0;
+		version_flags |= 0x1;
 #endif
-		if (arg4 && copy_to_user(arg4, &is_lkm, sizeof(is_lkm))) {
+		if (arg4 &&
+		    copy_to_user(arg4, &version_flags, sizeof(version_flags))) {
 			pr_err("prctl reply error, cmd: %lu\n", arg2);
+		}
+		return 0;
+	}
+
+	if (arg2 == CMD_GET_MANAGER_UID) {
+        uid_t manager_uid = ksu_get_manager_uid();
+        if (copy_to_user((void __user *)arg3, &manager_uid, sizeof(manager_uid))) {
+            pr_err("prctl reply error, cmd: %lu\n", arg2);
+        }
+        if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
+            pr_err("prctl reply error, cmd: %lu\n", arg2);
+        }
+        return 0;
+    }
+
+	if (arg2 == CMD_HOOK_MODE) {
+#ifdef CONFIG_KSU_KPROBES_HOOK
+		const char *mode = "Kprobes";
+#else
+		const char *mode = "Manual";
+#endif
+		if (copy_to_user((void __user *)arg3, mode, strlen(mode) + 1)) {
+			pr_info("hook: copy_to_user() failed\n");
 		}
 		return 0;
 	}
@@ -397,7 +435,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 			if (!post_fs_data_lock) {
 				post_fs_data_lock = true;
 				pr_info("post-fs-data triggered\n");
-				ksu_on_post_fs_data();
+				on_post_fs_data();
 			}
 			break;
 		}
@@ -412,6 +450,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 		case EVENT_MODULE_MOUNTED: {
 			ksu_module_mounted = true;
 			pr_info("module mounted!\n");
+			nuke_ext4_sysfs();
 			break;
 		}
 		default:
@@ -424,7 +463,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 		if (!from_root) {
 			return 0;
 		}
-		if (!ksu_handle_sepolicy(arg3, arg4)) {
+		if (!handle_sepolicy(arg3, arg4)) {
 			if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
 				pr_err("sepolicy: prctl reply error\n");
 			}
@@ -859,6 +898,42 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 		return 0;
 	}
 
+	if (arg2 == CMD_IS_SU_ENABLED) {
+		if (copy_to_user(arg3, &ksu_su_compat_enabled,
+				 sizeof(ksu_su_compat_enabled))) {
+			pr_err("copy su compat failed\n");
+			return 0;
+		}
+		if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
+			pr_err("prctl reply error, cmd: %lu\n", arg2);
+		}
+		return 0;
+	}
+
+	if (arg2 == CMD_ENABLE_SU) {
+		bool enabled = (arg3 != 0);
+		if (enabled == ksu_su_compat_enabled) {
+			pr_info("cmd enable su but no need to change.\n");
+			if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {// return the reply_ok directly
+				pr_err("prctl reply error, cmd: %lu\n", arg2);
+			}
+			return 0;
+		}
+
+		if (enabled) {
+			ksu_sucompat_init();
+		} else {
+			ksu_sucompat_exit();
+		}
+		ksu_su_compat_enabled = enabled;
+
+		if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
+			pr_err("prctl reply error, cmd: %lu\n", arg2);
+		}
+
+		return 0;
+	}
+
 	return 0;
 }
 
@@ -919,11 +994,13 @@ static void ksu_try_umount(const char *mnt, bool check_mnt, int flags)
 
 	if (path.dentry != path.mnt->mnt_root) {
 		// it is not root mountpoint, maybe umounted by others already.
+		path_put(&path);
 		return;
 	}
 
 	// we are only interest in some specific mounts
 	if (check_mnt && !should_umount(&path)) {
+		path_put(&path);
 		return;
 	}
 
@@ -1040,18 +1117,24 @@ out_ksu_try_umount:
 
 	// fixme: use `collect_mounts` and `iterate_mount` to iterate all mountpoint and
 	// filter the mountpoint whose target is `/data/adb`
-	ksu_try_umount("/system", true, 0);
-	ksu_try_umount("/system_ext", true, 0);
-	ksu_try_umount("/vendor", true, 0);
-	ksu_try_umount("/product", true, 0);
-	ksu_try_umount("/data/adb/modules", false, MNT_DETACH);
+	try_umount("/odm", true, 0);
+	try_umount("/system", true, 0);
+	try_umount("/system_ext", true, 0);
+	try_umount("/vendor", true, 0);
+	try_umount("/product", true, 0);
+	try_umount("/data/adb/modules", false, MNT_DETACH);
 
 	// try umount ksu temp path
-	ksu_try_umount("/debug_ramdisk", false, MNT_DETACH);
-	ksu_try_umount("/sbin", false, MNT_DETACH);
-	
+	try_umount("/debug_ramdisk", false, MNT_DETACH);
+	try_umount("/sbin", false, MNT_DETACH);
+
 	// try umount hosts file
-	ksu_try_umount("/system/etc/hosts", false, MNT_DETACH);
+	try_umount("/system/etc/hosts", false, MNT_DETACH);
+
+	// try umount lsposed dex2oat bins
+	try_umount("/apex/com.android.art/bin/dex2oat64", false, MNT_DETACH);
+	try_umount("/apex/com.android.art/bin/dex2oat32", false, MNT_DETACH);
+
 #endif
 	return 0;
 }
@@ -1125,15 +1208,22 @@ __maybe_unused int ksu_kprobe_exit(void)
 	return 0;
 }
 
-static int ksu_task_prctl(int option, unsigned long arg2, unsigned long arg3,
-			  unsigned long arg4, unsigned long arg5)
+extern int ksu_handle_devpts(struct inode *inode); // sucompat.c
+
+static int ksu_inode_permission(struct inode *inode, int mask)
 {
-	ksu_handle_prctl(option, arg2, arg3, arg4, arg5);
-	return -ENOSYS;
+	if (unlikely(inode->i_sb && inode->i_sb->s_magic == DEVPTS_SUPER_MAGIC)) {
+#ifdef CONFIG_KSU_DEBUG
+		pr_info("%s: devpts inode accessed with mask: %x\n", __func__, mask);
+#endif
+		ksu_handle_devpts(inode);
+	}
+	return 0;
 }
-// kernel 4.4 and 4.9
+
+// kernel 4.9 and older
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_IS_HW_HISI) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
-static int ksu_key_permission(key_ref_t key_ref, const struct cred *cred,
+int ksu_key_permission(key_ref_t key_ref, const struct cred *cred,
 			      unsigned perm)
 {
 	if (init_session_keyring != NULL) {
@@ -1148,6 +1238,15 @@ static int ksu_key_permission(key_ref_t key_ref, const struct cred *cred,
 	return 0;
 }
 #endif
+
+#ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
+static int ksu_task_prctl(int option, unsigned long arg2, unsigned long arg3,
+			  unsigned long arg4, unsigned long arg5)
+{
+	ksu_handle_prctl(option, arg2, arg3, arg4, arg5);
+	return -ENOSYS;
+}
+
 static int ksu_inode_rename(struct inode *old_inode, struct dentry *old_dentry,
 			    struct inode *new_inode, struct dentry *new_dentry)
 {
@@ -1165,6 +1264,7 @@ static struct security_hook_list ksu_hooks[] = {
 	LSM_HOOK_INIT(task_prctl, ksu_task_prctl),
 	LSM_HOOK_INIT(inode_rename, ksu_inode_rename),
 	LSM_HOOK_INIT(task_fix_setuid, ksu_task_fix_setuid),
+	LSM_HOOK_INIT(inode_permission, ksu_inode_permission),
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_IS_HW_HISI) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
 	LSM_HOOK_INIT(key_permission, ksu_key_permission)
 #endif
@@ -1346,16 +1446,21 @@ void __init ksu_lsm_hook_init(void)
 	}
 	smp_mb();
 }
-#endif
+#endif // MODULE
+#endif // CONFIG_KSU_LSM_SECURITY_HOOKS
 
 void __init ksu_core_init(void)
 {
+#ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
 	ksu_lsm_hook_init();
+#else
+	pr_info("ksu_core_init: LSM hooks not in use.\n");
+#endif
 }
 
 void ksu_core_exit(void)
 {
-#ifdef CONFIG_KPROBES
+#ifdef CONFIG_KSU_KPROBES_HOOK
 	pr_info("ksu_core_kprobe_exit\n");
 	// we dont use this now
 	// ksu_kprobe_exit();
