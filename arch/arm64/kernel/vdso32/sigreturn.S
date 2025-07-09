@@ -74,3 +74,5 @@ END(\name)
 	sigreturn_trampoline __kernel_rt_sigreturn_thumb, \
 			     __NR_rt_sigreturn, \
 			     COMPAT_RT_SIGFRAME_REGS_OFFSET
+
+.section .note.GNU-stack,"",%progbits

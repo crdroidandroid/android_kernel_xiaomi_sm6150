@@ -2298,8 +2298,6 @@ EXPORT_SYMBOL_GPL(usbnet_write_cmd_async);
 
 static int __init usbnet_init(void)
 {
-	int i = 0;
-
 	/* Compiler should optimize this out. */
 	BUILD_BUG_ON(
 		FIELD_SIZEOF(struct sk_buff, cb) < sizeof(struct skb_data));

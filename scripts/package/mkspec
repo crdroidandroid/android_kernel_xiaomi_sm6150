@@ -103,7 +103,10 @@ echo "%endif"
 echo 'make %{?_smp_mflags} INSTALL_HDR_PATH=$RPM_BUILD_ROOT/usr KBUILD_SRC= headers_install'
 echo 'cp System.map $RPM_BUILD_ROOT'"/boot/System.map-$KERNELRELEASE"
 
-echo 'cp .config $RPM_BUILD_ROOT'"/boot/config-$KERNELRELEASE"
+# Copy .config to RPM build root if it exists
+if [ -f .config ]; then
+  echo 'cp .config $RPM_BUILD_ROOT/boot/config-$KERNELRELEASE'
+fi
 
 echo "%ifnarch ppc64"
 echo 'bzip2 -9 --keep vmlinux'

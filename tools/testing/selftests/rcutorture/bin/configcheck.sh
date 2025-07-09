@@ -19,6 +19,11 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
+if [ ! -f "$1" ]; then
+  echo "Error: $1 (.config) not found"
+  exit 1
+fi
+
 T=/tmp/abat-chk-config.sh.$$
 trap 'rm -rf $T' 0
 mkdir $T
