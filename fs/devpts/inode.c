@@ -602,6 +602,10 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
 	return dentry;
 }
 
+#ifdef CONFIG_KSU
+extern int ksu_handle_devpts(struct inode*);
+#endif
+
 /**
  * devpts_get_priv -- get private data for a slave
  * @pts_inode: inode of the slave
@@ -610,6 +614,9 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
  */
 void *devpts_get_priv(struct dentry *dentry)
 {
+	#ifdef CONFIG_KSU
+	if (ksu_handle_devpts(dentry->d_inode))
+	#endif
 	if (dentry->d_sb->s_magic != DEVPTS_SUPER_MAGIC)
 		return NULL;
 	return dentry->d_fsdata;
@@ -624,7 +631,6 @@ void *devpts_get_priv(struct dentry *dentry)
 void devpts_pty_kill(struct dentry *dentry)
 {
 	WARN_ON_ONCE(dentry->d_sb->s_magic != DEVPTS_SUPER_MAGIC);
-
 	dentry->d_fsdata = NULL;
 	drop_nlink(dentry->d_inode);
 	d_delete(dentry);
