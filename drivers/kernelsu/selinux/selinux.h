@@ -8,17 +8,17 @@
 #define KSU_COMPAT_USE_SELINUX_STATE
 #endif
 
-void setup_selinux(const char *);
+void ksu_setup_selinux(const char *);
 
-void setenforce(bool);
+void ksu_setenforce(bool);
 
-bool getenforce();
+bool ksu_getenforce();
 
-bool is_ksu_domain();
+bool ksu_is_ksu_domain();
 
-bool is_zygote(void *cred);
+bool ksu_is_zygote(void *cred);
 
-void apply_kernelsu_rules();
+void ksu_apply_kernelsu_rules();
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 bool susfs_is_sid_equal(void *sec, u32 sid2);
