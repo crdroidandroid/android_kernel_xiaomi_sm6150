@@ -2,6 +2,9 @@
 # Automatically generated file; DO NOT EDIT.
 # Linux/arm64 4.14.180 Kernel Configuration
 #
+CONFIG_HAVE_MOVE_PMD=y
+CONFIG_HAVE_MOVE_PUD=y
+CONFIG_USERFAULTFD=y
 CONFIG_ARM64=y
 CONFIG_64BIT=y
 CONFIG_ARCH_PHYS_ADDR_T_64BIT=y
