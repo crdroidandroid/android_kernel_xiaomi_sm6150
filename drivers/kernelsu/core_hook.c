@@ -365,6 +365,15 @@ static bool is_system_bin_su(void)
 int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 		     unsigned long arg4, unsigned long arg5)
 {
+
+#ifdef CONFIG_KSU_SUSFS
+	// - We straight up check if process is supposed to be umounted, return 0 if so
+	// - This is to prevent side channel attack as much as possible
+	if (likely(susfs_is_current_non_root_user_app_proc())) {
+		return 0;
+	}
+#endif
+
 	// if success, we modify the arg5 as result!
 	u32 *result = (u32 *)arg5;
 	u32 reply_ok = KERNEL_SU_OPTION;
