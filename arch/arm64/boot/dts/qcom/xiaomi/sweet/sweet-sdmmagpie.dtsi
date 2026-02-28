@@ -700,6 +700,7 @@ And public attribution of xiaomi platforms(like F3 and so and)
 	//qcom,panel-mode-gpio = <&tlmm 7 0>;
 	qcom,platform-te-gpio = <&tlmm 10 0>;
 	qcom,platform-reset-gpio = <&pm6150l_gpios 9 0>;
+	qcom,mdss-dsi-panel-status-check-mode = "reg_read";
 };
 
 &dsi_xiaomi_f4_36_02_0b_fhd_cmd {
@@ -711,6 +712,7 @@ And public attribution of xiaomi platforms(like F3 and so and)
 	//qcom,panel-mode-gpio = <&tlmm 7 0>;
 	qcom,platform-te-gpio = <&tlmm 10 0>;
 	qcom,platform-reset-gpio = <&pm6150l_gpios 9 0>;
+	qcom,mdss-dsi-panel-status-check-mode = "reg_read";
 };
 
 &dsi_k6_38_0c_0a_fhd_dsc_video {
@@ -723,6 +725,7 @@ And public attribution of xiaomi platforms(like F3 and so and)
 	//qcom,platform-en-gpio = <&tlmm 30 0>;
 	qcom,platform-te-gpio = <&tlmm 10 0>;
 	qcom,platform-reset-gpio = <&pm6150l_gpios 9 0>;
+	qcom,mdss-dsi-panel-status-check-mode = "reg_read";
 };
 
 &dsi_k6_38_0e_0b_fhd_dsc_video {
@@ -735,10 +738,12 @@ And public attribution of xiaomi platforms(like F3 and so and)
 	//qcom,platform-en-gpio = <&tlmm 30 0>;
 	qcom,platform-te-gpio = <&tlmm 10 0>;
 	qcom,platform-reset-gpio = <&pm6150l_gpios 9 0>;
+	qcom,mdss-dsi-panel-status-check-mode = "reg_read";
 };
 
 &dsi_sw43404_amoled_video {
 	qcom,mdss-brightness-max-level = <2047>;
+	qcom,mdss-dsi-panel-status-check-mode = "reg_read";
 };
 
 &dsi_sim_vid_display {
