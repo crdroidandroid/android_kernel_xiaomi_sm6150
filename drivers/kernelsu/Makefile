@@ -63,8 +63,8 @@ obj-$(CONFIG_KSU) += kernelsu.o
 LPATH := /usr/bin/env PATH="$$PATH":/usr/bin:/usr/local/bin
 MDIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-KSU_GIT_VERSION := 3122
-KSU_GIT_TAG := v3.1.0
+KSU_GIT_VERSION := 3131
+KSU_GIT_TAG := v3.2.0
 KSU_GIT_VERSION_VALID := 1
 
 # Calculate version if git version is available
