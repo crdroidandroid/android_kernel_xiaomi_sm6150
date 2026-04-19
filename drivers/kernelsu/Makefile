@@ -1,28 +1,62 @@
-kernelsu-objs := ksu.o
-kernelsu-objs += allowlist.o
-kernelsu-objs += app_profile.o
-kernelsu-objs += apk_sign.o
-kernelsu-objs += sucompat.o
-kernelsu-objs += syscall_hook_manager.o
-kernelsu-objs += throne_tracker.o
-kernelsu-objs += pkg_observer.o
-kernelsu-objs += setuid_hook.o
-kernelsu-objs += lsm_hooks.o
-kernelsu-objs += kernel_compat.o
-kernelsu-objs += kernel_umount.o
-kernelsu-objs += supercalls.o
-kernelsu-objs += su_mount_ns.o
-kernelsu-objs += feature.o
-kernelsu-objs += ksud.o
-kernelsu-objs += seccomp_cache.o
-kernelsu-objs += file_wrapper.o
+kernelsu-objs := core/init.o
+
+kernelsu-objs += compat/kernel_compat.o
+kernelsu-objs += feature/kernel_umount.o
+kernelsu-objs += feature/sucompat.o
+
+kernelsu-objs += hook/hook_manager.o
+kernelsu-objs += hook/lsm_hooks.o
+kernelsu-objs += hook/setuid_hook.o
 kernelsu-objs += extras.o
+kernelsu-objs += tiny_sulog.o
+
+kernelsu-objs += infra/file_wrapper.o
+kernelsu-objs += infra/seccomp_cache.o
+kernelsu-objs += infra/su_mount_ns.o
+
+ifneq ($(CONFIG_KSU_DISABLE_MANAGER),y)
+kernelsu-objs += manager/apk_sign.o
+kernelsu-objs += manager/throne_tracker.o
+kernelsu-objs += manager/pkg_observer.o
+endif
+
+kernelsu-objs += policy/allowlist.o
+kernelsu-objs += policy/app_profile.o
+kernelsu-objs += policy/feature.o
+
+kernelsu-objs += runtime/boot_event.o
+kernelsu-objs += runtime/ksud_integration.o
 
 kernelsu-objs += selinux/selinux.o
-kernelsu-objs += selinux/sepolicy.o
 kernelsu-objs += selinux/rules.o
+kernelsu-objs += selinux/sepolicy.o
+
+kernelsu-objs += supercall/dispatch.o
+kernelsu-objs += supercall/perm.o
+kernelsu-objs += supercall/supercall.o
+
+ifdef KBUILD_EXTMOD
+ifeq ($(CONFIG_KSU_DISABLE_MANAGER),y)
+ccflags-y += -DCONFIG_KSU_DISABLE_MANAGER=1
+endif
+ifeq ($(CONFIG_KSU_DISABLE_POLICY),y)
+ccflags-y += -DCONFIG_KSU_DISABLE_POLICY=1
+endif
+ifeq ($(CONFIG_KSU_DEBUG),y)
+ccflags-y += -DCONFIG_KSU_DEBUG=1
+endif
+endif
+
 ccflags-y += -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
 ccflags-y += -I$(objtree)/security/selinux -include $(srctree)/include/uapi/asm-generic/errno.h
+
+ifeq ($(filter /%,$(src)),)
+KSU_KERNEL_DIR := $(srctree)/$(src)
+else
+KSU_KERNEL_DIR := $(src)
+endif
+
+ccflags-y += -I$(KSU_KERNEL_DIR) -I$(KSU_KERNEL_DIR)/include
 
 obj-$(CONFIG_KSU) += kernelsu.o
 
@@ -36,7 +70,7 @@ KSU_GIT_VERSION_VALID := 1
 # Calculate version if git version is available
 ifdef KSU_GIT_VERSION_VALID
 # ksu_version: major * 30000 + git version for historical reasons
-$(eval KSU_VERSION=$(shell expr 30000 + $(KSU_GIT_VERSION) + 136))
+$(eval KSU_VERSION=$(shell expr 30000 + $(KSU_GIT_VERSION) + 150))
 $(info -- KernelSU-Next version: $(KSU_VERSION))
 ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
 else

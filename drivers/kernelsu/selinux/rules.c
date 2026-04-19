@@ -3,20 +3,23 @@
 #include <linux/uaccess.h>
 #include <linux/types.h>
 #include <linux/version.h>
+#include <linux/lockdep.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
 #include <linux/sched/types.h>
 #endif
 #include <linux/stop_machine.h>
+#include <uapi/linux/sched/types.h>
 
-#include "../klog.h" // IWYU pragma: keep
+#include "uapi/selinux.h"
+#include "klog.h" // IWYU pragma: keep
 #include "selinux.h"
 #include "sepolicy.h"
 #include "ss/services.h"
 #include "linux/lsm_audit.h" // IWYU pragma: keep
 #include "xfrm.h"
-#include "kernel_compat.h"
+#include "compat/kernel_compat.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 #define SELINUX_POLICY_INSTEAD_SELINUX_SS
@@ -82,6 +85,7 @@ static int apply_kernelsu_rules_fn(void *ptr)
 {
 	struct policydb *db = (struct policydb *)ptr;
 
+    ksu_type(db, KERNEL_SU_DOMAIN, "domain");
     ksu_permissive(db, KERNEL_SU_DOMAIN);
     ksu_typeattribute(db, KERNEL_SU_DOMAIN, "mlstrustedsubject");
     ksu_typeattribute(db, KERNEL_SU_DOMAIN, "netdomain");
@@ -201,15 +205,51 @@ void apply_kernelsu_rules()
 out_unlock:
 	mutex_unlock(&selinux_state.policy_mutex);
 #else
+    cpumask_t old_mask;
 	db = get_policydb();
 	rwlock_t *lock = ksu_get_policy_rwlock();
 	
 	if (!lock)
 		goto do_stop_machine;
 
+    /*
+	 * HACK: write_lock() is held with preempt enabled. DO NOT let the
+	 * task be migrated to any other CPU than the current CPU. And since
+	 * set_cpus_allowed_ptr() can sleep, use raw_smp_processor_id() to get
+	 * current CPU and bypass preemption checks.
+	 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	cpumask_copy(&old_mask, current->cpus_ptr);
+#else
+	cpumask_copy(&old_mask, &current->cpus_allowed);
+#endif
+	set_cpus_allowed_ptr(current, cpumask_of(raw_smp_processor_id()));
 	write_lock(lock);
+	preempt_enable();
+
+    // we do this dance since both kernel and userspace can trigger this
+	if (likely(current && current->mm))
+		goto has_current_mm;
+
 	apply_kernelsu_rules_fn((void *)db);
+	goto out_unlock;
+
+has_current_mm:
+	;
+
+    // HACK: raise priority of this to the heavens
+	int old_policy = current->policy;
+	struct sched_param old_param = { .sched_priority = current->rt_priority };
+	struct sched_param new_param = { .sched_priority = 50 };
+
+	sched_setscheduler_nocheck(current, 1, &new_param); // raise, fifo, 50
+	apply_kernelsu_rules_fn((void *)db);
+	sched_setscheduler_nocheck(current, old_policy, &old_param); // restore
+
+out_unlock:
+	preempt_disable();
 	write_unlock(lock);
+    set_cpus_allowed_ptr(current, &old_mask);
 	goto out_flush;
 
 do_stop_machine:
@@ -231,31 +271,6 @@ out_flush:
 
 #define KSU_SEPOLICY_MAX_BATCH_SIZE (8U * 1024U * 1024U)
 #define KSU_SEPOLICY_MAX_ARGS 5
-
-#define CMD_NORMAL_PERM 1
-#define CMD_XPERM 2
-#define CMD_TYPE_STATE 3
-#define CMD_TYPE 4
-#define CMD_TYPE_ATTR 5
-#define CMD_ATTR 6
-#define CMD_TYPE_TRANSITION 7
-#define CMD_TYPE_CHANGE 8
-#define CMD_GENFSCON 9
-
-#define SUBCMD_NORMAL_PERM_ALLOW 1
-#define SUBCMD_NORMAL_PERM_DENY 2
-#define SUBCMD_NORMAL_PERM_AUDITALLOW 3
-#define SUBCMD_NORMAL_PERM_DONTAUDIT 4
-
-#define SUBCMD_XPERM_ALLOW 1
-#define SUBCMD_XPERM_AUDITALLOW 2
-#define SUBCMD_XPERM_DONTAUDIT 3
-
-#define SUBCMD_TYPE_STATE_PERMISSIVE 1
-#define SUBCMD_TYPE_STATE_ENFORCE 2
-
-#define SUBCMD_TYPE_CHANGE_CHANGE 1
-#define SUBCMD_TYPE_CHANGE_MEMBER 2
 
 struct sepol_data {
     u32 cmd;
@@ -330,22 +345,22 @@ static int sepol_require_not_all(const char *value, const char *name)
 static int sepol_expected_argc(u32 cmd)
 {
     switch (cmd) {
-    case CMD_NORMAL_PERM:
+    case KSU_SEPOLICY_CMD_NORMAL_PERM:
         return 4;
-    case CMD_XPERM:
+    case KSU_SEPOLICY_CMD_XPERM:
         return 5;
-    case CMD_TYPE_STATE:
+    case KSU_SEPOLICY_CMD_TYPE_STATE:
         return 1;
-    case CMD_TYPE:
-    case CMD_TYPE_ATTR:
+    case KSU_SEPOLICY_CMD_TYPE:
+    case KSU_SEPOLICY_CMD_TYPE_ATTR:
         return 2;
-    case CMD_ATTR:
+    case KSU_SEPOLICY_CMD_ATTR:
         return 1;
-    case CMD_TYPE_TRANSITION:
+    case KSU_SEPOLICY_CMD_TYPE_TRANSITION:
         return 5;
-    case CMD_TYPE_CHANGE:
+    case KSU_SEPOLICY_CMD_TYPE_CHANGE:
         return 4;
-    case CMD_GENFSCON:
+    case KSU_SEPOLICY_CMD_GENFSCON:
         return 3;
     default:
         return -EINVAL;
@@ -360,21 +375,21 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
     int ret;
 
     switch (header->cmd) {
-    case CMD_NORMAL_PERM:
-        if (header->subcmd == SUBCMD_NORMAL_PERM_ALLOW) {
+    case KSU_SEPOLICY_CMD_NORMAL_PERM:
+        if (header->subcmd == KSU_SEPOLICY_SUBCMD_NORMAL_PERM_ALLOW) {
             success = ksu_allow(db, args[0], args[1], args[2], args[3]);
-        } else if (header->subcmd == SUBCMD_NORMAL_PERM_DENY) {
+        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_NORMAL_PERM_DENY) {
             success = ksu_deny(db, args[0], args[1], args[2], args[3]);
-        } else if (header->subcmd == SUBCMD_NORMAL_PERM_AUDITALLOW) {
+        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_NORMAL_PERM_AUDITALLOW) {
             success = ksu_auditallow(db, args[0], args[1], args[2], args[3]);
-        } else if (header->subcmd == SUBCMD_NORMAL_PERM_DONTAUDIT) {
+        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_NORMAL_PERM_DONTAUDIT) {
             success = ksu_dontaudit(db, args[0], args[1], args[2], args[3]);
         } else {
             pr_err("sepol: unknown subcmd: %d\n", header->subcmd);
         }
         return success ? 0 : -EINVAL;
 
-    case CMD_XPERM:
+    case KSU_SEPOLICY_CMD_XPERM:
         ret = sepol_require_not_all(args[3], "operation");
         if (ret < 0) {
             return ret;
@@ -384,12 +399,12 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
             return ret;
         }
 
-        if (header->subcmd == SUBCMD_XPERM_ALLOW) {
+        if (header->subcmd == KSU_SEPOLICY_SUBCMD_XPERM_ALLOW) {
             success = ksu_allowxperm(db, args[0], args[1], args[2], args[4]);
-        } else if (header->subcmd == SUBCMD_XPERM_AUDITALLOW) {
+        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_XPERM_AUDITALLOW) {
             success =
                 ksu_auditallowxperm(db, args[0], args[1], args[2], args[4]);
-        } else if (header->subcmd == SUBCMD_XPERM_DONTAUDIT) {
+        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_XPERM_DONTAUDIT) {
             success =
                 ksu_dontauditxperm(db, args[0], args[1], args[2], args[4]);
         } else {
@@ -397,23 +412,23 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
         }
         return success ? 0 : -EINVAL;
 
-    case CMD_TYPE_STATE:
+    case KSU_SEPOLICY_CMD_TYPE_STATE:
         ret = sepol_require_not_all(args[0], "type");
         if (ret < 0) {
             return ret;
         }
 
-        if (header->subcmd == SUBCMD_TYPE_STATE_PERMISSIVE) {
+        if (header->subcmd == KSU_SEPOLICY_SUBCMD_TYPE_STATE_PERMISSIVE) {
             success = ksu_permissive(db, args[0]);
-        } else if (header->subcmd == SUBCMD_TYPE_STATE_ENFORCE) {
+        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_TYPE_STATE_ENFORCE) {
             success = ksu_enforce(db, args[0]);
         } else {
             pr_err("sepol: unknown subcmd: %d\n", header->subcmd);
         }
         return success ? 0 : -EINVAL;
 
-    case CMD_TYPE:
-    case CMD_TYPE_ATTR:
+    case KSU_SEPOLICY_CMD_TYPE:
+    case KSU_SEPOLICY_CMD_TYPE_ATTR:
         ret = sepol_require_not_all(args[0], "type");
         if (ret < 0) {
             return ret;
@@ -423,7 +438,7 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
             return ret;
         }
 
-        if (header->cmd == CMD_TYPE) {
+        if (header->cmd == KSU_SEPOLICY_CMD_TYPE) {
             success = ksu_type(db, args[0], args[1]);
         } else {
             success = ksu_typeattribute(db, args[0], args[1]);
@@ -434,7 +449,7 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
         }
         return 0;
 
-    case CMD_ATTR:
+    case KSU_SEPOLICY_CMD_ATTR:
         ret = sepol_require_not_all(args[0], "attribute");
         if (ret < 0) {
             return ret;
@@ -446,7 +461,7 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
         }
         return 0;
 
-    case CMD_TYPE_TRANSITION: {
+    case KSU_SEPOLICY_CMD_TYPE_TRANSITION: {
         const char *object = ALL;
 
         ret = sepol_require_not_all(args[0], "src");
@@ -473,7 +488,7 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
         return success ? 0 : -EINVAL;
     }
 
-    case CMD_TYPE_CHANGE:
+    case KSU_SEPOLICY_CMD_TYPE_CHANGE:
         ret = sepol_require_not_all(args[0], "src");
         if (ret < 0) {
             return ret;
@@ -491,16 +506,16 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
             return ret;
         }
 
-        if (header->subcmd == SUBCMD_TYPE_CHANGE_CHANGE) {
+        if (header->subcmd == KSU_SEPOLICY_SUBCMD_TYPE_CHANGE_CHANGE) {
             success = ksu_type_change(db, args[0], args[1], args[2], args[3]);
-        } else if (header->subcmd == SUBCMD_TYPE_CHANGE_MEMBER) {
+        } else if (header->subcmd == KSU_SEPOLICY_SUBCMD_TYPE_CHANGE_MEMBER) {
             success = ksu_type_member(db, args[0], args[1], args[2], args[3]);
         } else {
             pr_err("sepol: unknown subcmd: %d\n", header->subcmd);
         }
         return success ? 0 : -EINVAL;
 
-    case CMD_GENFSCON:
+    case KSU_SEPOLICY_CMD_GENFSCON:
         ret = sepol_require_not_all(args[0], "name");
         if (ret < 0) {
             return ret;
@@ -696,14 +711,20 @@ out:
 
 int handle_sepolicy(void __user *user_data, u64 data_len)
 {
+	u8 *payload;
 	int ret = 0;
 	int success_cmd_count = 0;
+    cpumask_t old_mask;
 
-	if (!user_data || !data_len) return -EINVAL;
-	if (data_len > KSU_SEPOLICY_MAX_BATCH_SIZE) return -E2BIG;
+	if (!user_data || !data_len)
+		return -EINVAL;
 
-	u8 *payload = kvmalloc((size_t)data_len, GFP_KERNEL);
-	if (!payload) return -ENOMEM;
+	if (data_len > KSU_SEPOLICY_MAX_BATCH_SIZE)
+		return -E2BIG;
+
+	payload = kvmalloc((size_t)data_len, GFP_KERNEL);
+	if (!payload)
+		return -ENOMEM;
 
 	if (copy_from_user(payload, user_data, (size_t)data_len)) {
 		ret = -EFAULT;
@@ -723,17 +744,50 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
 	if (!lock)
 		goto do_stop_machine;
 
-	// Since we have GFP_ATOMIC, we can atomically lock
+	/*
+	 * HACK: write_lock() is held with preempt enabled. DO NOT let the
+	 * task be migrated to any other CPU than the current CPU. And since
+	 * set_cpus_allowed_ptr() can sleep, use raw_smp_processor_id() to get
+	 * current CPU and bypass preemption checks.
+	 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	cpumask_copy(&old_mask, current->cpus_ptr);
+#else
+	cpumask_copy(&old_mask, &current->cpus_allowed);
+#endif
+	set_cpus_allowed_ptr(current, cpumask_of(raw_smp_processor_id()));
 	write_lock(lock);
+	preempt_enable();
+
+	if (likely(current && current->mm))
+		goto has_current_mm;
+
 	ret = handle_sepolicy_fn((void *)&ctx);
+	goto out_unlock;
+
+has_current_mm:
+	;
+
+	int old_policy = current->policy;
+	struct sched_param old_param = { .sched_priority = current->rt_priority };
+	struct sched_param new_param = { .sched_priority = 50 };
+
+	sched_setscheduler_nocheck(current, 1, &new_param);
+	ret = handle_sepolicy_fn((void *)&ctx);
+	sched_setscheduler_nocheck(current, old_policy, &old_param);
+
+out_unlock:
+	preempt_disable();
 	write_unlock(lock);
+    set_cpus_allowed_ptr(current, &old_mask);
 	goto out_done;
 
 do_stop_machine:
 	ret = stop_machine(handle_sepolicy_fn, (void *)&ctx, NULL);
 
 out_done:
-	if (ret) goto out_free;
+	if (ret)
+		goto out_free;
 
 	smp_mb();
 	reset_avc_cache();
@@ -741,6 +795,7 @@ out_done:
 
 out_free:
 	kvfree(payload);
+
 	return ret;
 }
 #endif // SELINUX_POLICY_INSTEAD_SELINUX_SS
