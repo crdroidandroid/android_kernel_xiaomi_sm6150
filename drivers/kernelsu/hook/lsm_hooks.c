@@ -113,7 +113,7 @@ static int ksu_task_fix_setuid(struct cred *new, const struct cred *old,
 #define DEVPTS_SUPER_MAGIC	0x1cd1
 #endif
 
-extern int __ksu_handle_devpts(struct inode *inode); // sucompat.c
+//extern int __ksu_handle_devpts(struct inode *inode); // sucompat.c
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
 int ksu_inode_permission(struct mnt_idmap *idmap, struct inode *inode, int mask)
@@ -124,7 +124,7 @@ int ksu_inode_permission(struct inode *inode, int mask)
 #endif
 {
 	if (unlikely(inode && inode->i_sb && inode->i_sb->s_magic == DEVPTS_SUPER_MAGIC)) {
-		__ksu_handle_devpts(inode);
+		//__ksu_handle_devpts(inode);
 	}
 	return 0;
 }
