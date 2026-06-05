@@ -416,6 +416,7 @@ static int do_get_wrapper_fd(void __user *arg) {
 
 static int do_manage_mark(void __user *arg)
 {
+#ifdef KSU_KPROBES_HOOK
 	struct ksu_manage_mark_cmd cmd;
 	int ret = 0;
 
@@ -503,6 +504,11 @@ static int do_manage_mark(void __user *arg)
 	}
 
 	return 0;
+#else
+	// We don't care, just return -ENOTSUPP
+	pr_warn("manage_mark: this supercalls is not implemented for manual hook.\n");
+	return -ENOTSUPP;
+#endif
 }
 
 static int do_get_hook_mode(void __user *arg)

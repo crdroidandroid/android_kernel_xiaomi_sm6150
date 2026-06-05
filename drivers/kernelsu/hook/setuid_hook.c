@@ -97,10 +97,12 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
     uid_t new_uid = ruid;
     uid_t old_uid = current_uid().val;
 
+#ifdef CONFIG_KSU_SUSFS
     // We only interest in process spwaned by zygote
     if (!susfs_is_sid_equal(current_cred(), susfs_zygote_sid)) {
         return 0;
     }
+#endif // #ifdef CONFIG_KSU_SUSFS
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
     // Check if spawned process is isolated service first, and force to do umount if so  
@@ -138,9 +140,11 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
     }
 
 // Check if spawned process is normal user app and needs to be umounted
+#ifdef CONFIG_KSU_SUSFS
     if (likely(is_zygote_normal_app_uid(new_uid) && ksu_uid_should_umount(new_uid))) {
         goto do_umount;
     }
+#endif // #ifdef CONFIG_KSU_SUSFS
 
 	if (ksu_is_allow_uid_for_current(new_uid)) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
@@ -177,10 +181,11 @@ do_umount:
     //susfs_run_sus_path_loop(new_uid);
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 
+#ifdef CONFIG_KSU_SUSFS
     ksu_handle_extra_susfs_work();
 
     susfs_set_current_proc_umounted();
-
+#endif // #ifdef CONFIG_KSU_SUSFS
     return 0;
 }
 
