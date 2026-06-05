@@ -18,6 +18,7 @@
 #include "supercall/supercall.h"
 #include "ksu.h"
 #include "infra/file_wrapper.h"
+#include "feature/selinux_hide.h"
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/susfs.h>
 #endif // #ifdef CONFIG_KSU_SUSFS
@@ -103,7 +104,7 @@ int __init kernelsu_init(void)
 
 	ksu_supercalls_init();
 
-	
+	ksu_selinux_hide_init(); // so the feature is registered
 
 	if (ksu_late_loaded) {
 		pr_info("late load mode, skipping kprobe hooks\n");
