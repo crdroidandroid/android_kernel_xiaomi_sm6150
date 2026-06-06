@@ -43,6 +43,7 @@ static __nocfi int ksu_setprocattr_wrapper(const char *name, void *value, size_t
 		return selinux_setprocattr_fn(name, value, size);
 	return 0;
 }
+#define ksu_security_add_hooks security_add_hooks
 #else
 static int (*selinux_setprocattr_fn)(struct task_struct *p, char *name, void *value, size_t size) __read_mostly = NULL;
 static __nocfi int ksu_setprocattr_wrapper(struct task_struct *p, char *name, void *value, size_t size)
@@ -53,6 +54,7 @@ static __nocfi int ksu_setprocattr_wrapper(struct task_struct *p, char *name, vo
 
 	return 0;
 }
+#define ksu_security_add_hooks(a, b, c) security_add_hooks(a, b)
 #endif
 
 /**
@@ -417,15 +419,12 @@ static void ksu_dethrone_selinux_setprocattr()
 void __init ksu_lsm_hook_init(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
-	security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), &ksu_lsmid);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-	security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), "ksu");
+	ksu_security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), &ksu_lsmid);
 #else
-	// https://elixir.bootlin.com/linux/v4.10.17/source/include/linux/lsm_hooks.h#L1892
-	security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks));
+	ksu_security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), "ksu");
 #endif
 	pr_info("LSM hooks initialized.\n");
-	security_add_hooks(ksu_hooks_setprocattr, ARRAY_SIZE(ksu_hooks_setprocattr), SETPROCATTR_HOOK_NAME);
+	ksu_security_add_hooks(ksu_hooks_setprocattr, ARRAY_SIZE(ksu_hooks_setprocattr), SETPROCATTR_HOOK_NAME);
 	ksu_dethrone_selinux_setprocattr();
 	pr_info("setprocattr (SELinux Hide) hooks initialized.\n");
 }
