@@ -183,7 +183,7 @@ static const struct lsm_id ksu_lsmid = {
 };
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) || defined(KSU_COMPAT_SECURITY_DELETE_HOOKS_HLIST)
 static void ksu_hlist_del_safe(struct hlist_node *n)
 {
 	struct hlist_node *next = n->next;

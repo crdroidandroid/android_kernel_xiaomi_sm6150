@@ -228,6 +228,12 @@ $(info -- KSU_NEXT: patching selinux/include/objsec.h for selinux_cred)
 $(shell sed -i '/#endif \/\* _SELINUX_OBJSEC_H_ \*\//i\static inline struct task_security_struct *selinux_cred(const struct cred *cred)\n{\n\treturn cred->security;\n}\n' $(srctree)/security/selinux/include/objsec.h)
 endif
 
+# see security_delete_hooks
+ifeq ($(shell grep -A5 "^struct security_hook_list" $(srctree)/include/linux/lsm_hooks.h 2>/dev/null | grep -q "struct hlist_node" 2>/dev/null; echo $$?),0)
+$(info -- KSU_NEXT: security_hook_list - hlist_node found!)
+ccflags-y += -DKSU_COMPAT_SECURITY_DELETE_HOOKS_HLIST
+endif
+
 # SELinux drivers check
 ifeq ($(shell grep -q "current_sid(void)" $(srctree)/security/selinux/include/objsec.h; echo $$?),0)
 ccflags-y += -DKSU_COMPAT_HAS_CURRENT_SID
