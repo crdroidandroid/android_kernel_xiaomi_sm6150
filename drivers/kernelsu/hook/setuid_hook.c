@@ -65,6 +65,9 @@ static void ksu_handle_extra_susfs_work(void)
 {
     struct susfs_handle_setuid_tw *tw = kzalloc(sizeof(*tw), GFP_ATOMIC);
 
+    if (work_pending(&susfs_extra_works))
+        return;
+
     schedule_work(&susfs_extra_works);
 
     if (!tw) {
