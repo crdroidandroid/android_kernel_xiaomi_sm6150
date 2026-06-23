@@ -74,6 +74,10 @@ static void ksu_add_shit_to_list(u32 cmd, const char *args[])
 
 
 	} else if (argc >= 2) {
+
+		if (!args[1])
+			goto out_unlock;
+
 		const char *src = args[0];
 		const char *tgt = args[1];
 
