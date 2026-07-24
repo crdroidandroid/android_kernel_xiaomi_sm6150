@@ -812,6 +812,19 @@ KBUILD_CFLAGS += $(call cc-option, -Wno-sometimes-uninitialized)
 KBUILD_CFLAGS += $(call cc-option, -Wno-pointer-to-int-cast)
 KBUILD_CFLAGS += $(call cc-option, -Wno-void-pointer-to-int-cast)
 
+# Polly Loop Optimizations
+ifeq ($(cc-name),clang)
+    POLLY_FLAGS := -mllvm -polly \
+                   -mllvm -polly-opt-isl \
+                   -mllvm -polly-optree \
+                   -mllvm -polly-invariant-load-hoisting \
+                   -mllvm -polly-tiling \
+                   -mllvm -polly-simplify \
+                   -mllvm -polly-run-dce
+
+    KBUILD_CFLAGS += $(POLLY_FLAGS)
+endif
+
 # Quiet clang warning: comparison of unsigned expression < 0 is always false
 
 KBUILD_CFLAGS += $(call cc-disable-warning, tautological-compare)
