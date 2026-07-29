@@ -136,8 +136,10 @@ $(info -- KernelSU-Next: Hook mode: Manual)
 endif
 endif
 
+ifneq ($(CONFIG_KSU_MANUAL_HOOK)$(CONFIG_KSU_KPROBES_HOOK),)
 ifneq ($(HAVE_KSU_HOOK),0)
 $(error -- KernelSU-Next: No hooks were defined, please integrate manual hooks in your kernel!)
+endif
 endif
 
 # some backports
