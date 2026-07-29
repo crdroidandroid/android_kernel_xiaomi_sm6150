@@ -2166,7 +2166,23 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 	if (val->intval > chg->thermal_levels)
 		return -EINVAL;
 
-	chg->system_temp_level = val->intval;
+	/*
+	 * Intelligent thermal level clamping: prevent aggressive throttling
+	 * (level 14+) when actual kernel temperature sensors are safe.
+	 * This protects against userspace thermal daemons with miscalibrated
+	 * virtual sensors while still allowing real overheating protection.
+	 */
+	if (val->intval >= 14 &&
+	    chg->connector_temp < CONNECTOR_TEMP_REG_H_THRESH &&
+	    chg->smb_temp < SMB_TEMP_REG_H_THRESH &&
+	    chg->die_temp < DIE_TEMP_REG_H_THRESH) {
+		pr_info("pm6150_charger: Userspace requested thermal level %d, but temps safe (conn:%d smb:%d die:%d). Clamping to level 10 for charge pump compatibility.\n",
+			val->intval, chg->connector_temp, chg->smb_temp, chg->die_temp);
+		chg->system_temp_level = 10;
+	} else {
+		chg->system_temp_level = val->intval;
+	}
+
 	/* disable parallel charge in case of system temp level */
 	vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,
 			chg->system_temp_level ? true : false, 0);
