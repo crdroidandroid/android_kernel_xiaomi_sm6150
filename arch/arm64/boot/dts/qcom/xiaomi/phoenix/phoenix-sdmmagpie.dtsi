@@ -251,7 +251,7 @@
 	/delete-property/ qcom,step-charging-enable;
 	qcom,sec-charger-config = <1>;
 	/delete-property/ qcom,dynamic-fv-enable;
-	qcom,thermal-mitigation = <5500000 5000000 4500000 4000000 3500000 3000000 2900000
+	qcom,thermal-mitigation = <3500000 3400000 3300000 3200000 3100000 3000000 2900000
 				   2800000 2600000 2400000 2200000 2000000 1800000 1500000
 				   1000000 500000>;
 	qcom,thermal-mitigation-icl
@@ -347,7 +347,7 @@
 
 &pm6150_pdphy {
 	mi,pd_curr_limit = <1>;
-	mi,pd_max_curr_limit = <5500000>;
+	mi,pd_max_curr_limit = <4000000>;
 };
 
 &usb0 {
