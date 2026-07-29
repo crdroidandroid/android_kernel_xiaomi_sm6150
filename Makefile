@@ -815,12 +815,13 @@ KBUILD_CFLAGS += $(call cc-option, -Wno-void-pointer-to-int-cast)
 # Polly Loop Optimizations
 ifeq ($(cc-name),clang)
     POLLY_FLAGS := -mllvm -polly \
-                   -mllvm -polly-opt-isl \
-                   -mllvm -polly-optree \
-                   -mllvm -polly-invariant-load-hoisting \
+                   -mllvm -polly-vectorizer=stripmine \
+                   -mllvm -polly-parallel \
                    -mllvm -polly-tiling \
-                   -mllvm -polly-simplify \
-                   -mllvm -polly-run-dce
+                   -mllvm -polly-invariant-load-hoisting \
+                   -mllvm -polly-run-dce \
+                   -mllvm -polly-matmul-opt \
+                   -mllvm -polly-tc-opt
 
     KBUILD_CFLAGS += $(POLLY_FLAGS)
 endif
