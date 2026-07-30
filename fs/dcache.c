@@ -81,7 +81,11 @@
  *   dentry1->d_lock
  *     dentry2->d_lock
  */
-int sysctl_vfs_cache_pressure __read_mostly = 100;
+/*
+ * Optimized for 6GB RAM devices: reduced from 100 to 50.
+ * Lower value = keep dentry/inode cache longer for faster file/app access.
+ */
+int sysctl_vfs_cache_pressure __read_mostly = 50;
 EXPORT_SYMBOL_GPL(sysctl_vfs_cache_pressure);
 
 __cacheline_aligned_in_smp DEFINE_SEQLOCK(rename_lock);
