@@ -48,7 +48,6 @@
 #include <linux/oom.h>
 #include <linux/prefetch.h>
 #include <linux/printk.h>
-#include <linux/workqueue.h>
 #include <linux/dax.h>
 #include <linux/psi.h>
 
@@ -163,8 +162,7 @@ unsigned long sysctl_clean_min_kbytes __read_mostly = CONFIG_CLEAN_MIN_KBYTES;
 
 /*
  * From 0 .. 100.  Higher means more swappy.
- * Default optimized to 20 for better multitasking on 6GB RAM devices.
- * Reduces aggressive swapping while maintaining memory pressure handling.
+ * Reduced to 20 for 6GB devices - prefer RAM over swap for multitasking.
  */
 int vm_swappiness = 20;
 /*
@@ -4230,121 +4228,3 @@ void check_move_unevictable_pages(struct page **pages, int nr_pages)
 	}
 }
 #endif /* CONFIG_SHMEM */
-
-/*
- * Delayed workqueue function to re-apply optimizations after
- * vendor init.rc has overridden them at early boot.
- * Runs ~60s after boot, ensuring Android init is fully complete.
- */
-static void reapply_optimizations_work(struct work_struct *work)
-{
-	static int run_count = 0;
-	struct file *f;
-	char buf[128];
-
-	run_count++;
-
-	/* Re-apply swappiness (vendor init.rc often resets to 60) */
-	vm_swappiness = 20;
-
-	/* I/O Scheduler: Set deadline for UFS 2.1 storage. */
-	f = filp_open("/sys/block/sda/queue/scheduler", O_WRONLY, 0);
-	if (!IS_ERR(f)) {
-		snprintf(buf, sizeof(buf), "deadline\n");
-		kernel_write(f, buf, strlen(buf), &f->f_pos);
-		filp_close(f, NULL);
-	}
-
-	f = filp_open("/sys/block/sdb/queue/scheduler", O_WRONLY, 0);
-	if (!IS_ERR(f)) {
-		kernel_write(f, buf, strlen(buf), &f->f_pos);
-		filp_close(f, NULL);
-	}
-
-	/* CPU Input Boost: Enable frequency boost on touch events. */
-	f = filp_open("/sys/module/cpu_boost/parameters/input_boost_freq", O_WRONLY, 0);
-	if (!IS_ERR(f)) {
-		snprintf(buf, sizeof(buf),
-			"0:1804800 1:1804800 2:1804800 3:1804800 4:1804800 5:1804800 6:2208000 7:2208000\n");
-		kernel_write(f, buf, strlen(buf), &f->f_pos);
-		filp_close(f, NULL);
-	}
-
-	f = filp_open("/sys/module/cpu_boost/parameters/input_boost_ms", O_WRONLY, 0);
-	if (!IS_ERR(f)) {
-		snprintf(buf, sizeof(buf), "40\n");
-		kernel_write(f, buf, strlen(buf), &f->f_pos);
-		filp_close(f, NULL);
-	}
-
-	/* Scheduler boost on input. */
-	f = filp_open("/sys/module/cpu_boost/parameters/sched_boost_on_input", O_WRONLY, 0);
-	if (!IS_ERR(f)) {
-		snprintf(buf, sizeof(buf), "1\n");
-		kernel_write(f, buf, strlen(buf), &f->f_pos);
-		filp_close(f, NULL);
-	}
-
-	/*
-	 * CPU Governor Rate Limits - Little Cluster (CPUs 0-5, Cortex-A55).
-	 * up_rate_limit stays at 500 (performance), down_rate_limit reduced
-	 * from 20000 to 5000 for better battery efficiency.
-	 */
-	f = filp_open("/sys/devices/system/cpu/cpu0/cpufreq/schedutil/down_rate_limit_us", O_WRONLY, 0);
-	if (!IS_ERR(f)) {
-		snprintf(buf, sizeof(buf), "5000\n");
-		kernel_write(f, buf, strlen(buf), &f->f_pos);
-		filp_close(f, NULL);
-	}
-
-	/*
-	 * CPU Governor Rate Limits - Big Cluster (CPUs 6-7, Cortex-A76).
-	 * down_rate_limit reduced from 20000 to 10000.
-	 */
-	f = filp_open("/sys/devices/system/cpu/cpu6/cpufreq/schedutil/down_rate_limit_us", O_WRONLY, 0);
-	if (!IS_ERR(f)) {
-		snprintf(buf, sizeof(buf), "10000\n");
-		kernel_write(f, buf, strlen(buf), &f->f_pos);
-		filp_close(f, NULL);
-	}
-
-	pr_info("OPTIMIZE: Re-applied after vendor init (run %d/4)\n", run_count);
-
-	/* Re-schedule 3 more times to catch any late-running services */
-	if (run_count < 4)
-		schedule_delayed_work(&reapply_optimizations,
-				      msecs_to_jiffies(run_count == 1 ? 60000 :
-							run_count == 2 ? 120000 : 300000));
-}
-
-static DECLARE_DELAYED_WORK(reapply_optimizations, reapply_optimizations_work);
-
-/*
- * Late initcall - runs at early boot, sets kernel variables and schedules
- * delayed work to re-apply sysfs values after vendor init.rc completes.
- */
-static int __init optimize_hammerhead(void)
-{
-	extern int sysctl_vfs_cache_pressure;
-	extern int vm_dirty_ratio;
-	extern int dirty_background_ratio;
-	extern unsigned int dirty_writeback_interval;
-	extern unsigned int dirty_expire_interval;
-
-	/* Set kernel variables directly */
-	vm_swappiness = 20;
-	sysctl_vfs_cache_pressure = 50;
-	vm_dirty_ratio = 20;
-	dirty_background_ratio = 10;
-	dirty_writeback_interval = 5 * 100;
-	dirty_expire_interval = 30 * 100;
-
-	pr_info("OPTIMIZE: 6GB/730G - swap=%d cache=%d dirty=%d/%d io=deadline input_boost=enabled schedutil=500/10000|1000/5000\n",
-		vm_swappiness, sysctl_vfs_cache_pressure, vm_dirty_ratio, dirty_background_ratio);
-
-	/* Re-apply sysfs values ~60s after boot */
-	schedule_delayed_work(&reapply_optimizations, msecs_to_jiffies(60000));
-
-	return 0;
-}
-late_initcall(optimize_hammerhead);
