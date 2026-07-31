@@ -220,6 +220,7 @@ extern ssize_t elv_iosched_show(struct request_queue *, char *);
 extern ssize_t elv_iosched_store(struct request_queue *, const char *, size_t);
 
 extern int elevator_init(struct request_queue *, char *);
+extern int elevator_change_queue(struct request_queue *, const char *);
 extern void elevator_exit(struct request_queue *, struct elevator_queue *);
 extern bool elv_bio_merge_ok(struct request *, struct bio *);
 extern struct elevator_queue *elevator_alloc(struct request_queue *,

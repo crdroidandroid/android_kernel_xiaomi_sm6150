@@ -1169,3 +1169,20 @@ struct request *elv_rb_latter_request(struct request_queue *q,
 	return NULL;
 }
 EXPORT_SYMBOL(elv_rb_latter_request);
+
+/**
+ * elevator_change_queue - Change the IO scheduler for a request queue
+ * @q: request queue to change
+ * @name: name of the elevator to use
+ *
+ * This is exported for kernel-internal use, wrapping the static
+ * __elevator_change() to bypass sysfs/SELinux restrictions.
+ */
+int elevator_change_queue(struct request_queue *q, const char *name)
+{
+	int ret = __elevator_change(q, name);
+	if (ret)
+		pr_info("elevator: change to %s failed: %d\n", name, ret);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(elevator_change_queue);

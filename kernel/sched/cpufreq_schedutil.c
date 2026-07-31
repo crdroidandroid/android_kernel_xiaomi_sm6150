@@ -81,6 +81,32 @@ static DEFINE_PER_CPU(struct sugov_cpu, sugov_cpu);
 static unsigned int stale_ns;
 static DEFINE_PER_CPU(struct sugov_tunables *, cached_tunables);
 
+/**
+ * schedutil_set_down_rate_limit - Set governor down rate limit for all policies
+ * @limit_us: new down_rate_limit_us value
+ *
+ * Exported for kernel-internal use, bypasses sysfs path.
+ */
+void schedutil_set_down_rate_limit(unsigned int limit_us)
+{
+	int cpu;
+	struct sugov_tunables *tunables;
+	int n_set = 0, n_miss = 0;
+
+	for_each_possible_cpu(cpu) {
+		tunables = per_cpu(cached_tunables, cpu);
+		if (tunables) {
+			tunables->down_rate_limit_us = limit_us;
+			n_set++;
+		} else {
+			n_miss++;
+		}
+	}
+	pr_info("schedutil: down_rate_limit=%uus, set=%d, miss=%d\n",
+		limit_us, n_set, n_miss);
+}
+EXPORT_SYMBOL_GPL(schedutil_set_down_rate_limit);
+
 /************************ Governor internals ***********************/
 
 static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)

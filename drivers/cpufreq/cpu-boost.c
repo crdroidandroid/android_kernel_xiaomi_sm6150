@@ -333,3 +333,35 @@ static int cpu_boost_init(void)
 	return 0;
 }
 late_initcall(cpu_boost_init);
+
+/**
+ * cpu_boost_set_params - Set CPU input boost parameters from kernel
+ * @freq_str: boost frequencies in "0:1804800 1:1804800 ..." format
+ * @boost_ms: boost duration in ms
+ * @sched_boost: enable/disable scheduler boost on input
+ *
+ * Directly sets boost parameters without going through sysfs.
+ */
+void cpu_boost_set_params(const char *freq_str, unsigned int boost_ms,
+			  unsigned int sched_boost)
+{
+	static const unsigned int freqs[] = {
+		1804800, 1804800, 1804800, 1804800,
+		1804800, 1804800, 2208000, 2208000
+	};
+	int cpu;
+
+	/* Direct per-CPU assignment, bypasses set_input_boost_freq parsing */
+	for_each_possible_cpu(cpu) {
+		if (cpu < ARRAY_SIZE(freqs))
+			per_cpu(sync_info, cpu).input_boost_freq = freqs[cpu];
+		else
+			per_cpu(sync_info, cpu).input_boost_freq = freqs[0];
+	}
+	input_boost_enabled = true;
+	input_boost_ms = boost_ms;
+	sched_boost_on_input = sched_boost;
+	pr_info("cpu-boost: enabled for %d CPUs, ms=%u, sched=%u\n",
+		ARRAY_SIZE(freqs), boost_ms, sched_boost);
+}
+EXPORT_SYMBOL_GPL(cpu_boost_set_params);

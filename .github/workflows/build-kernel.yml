@@ -1,0 +1,164 @@
+name: Build SM6150 Kernel (ARM64, Manual)
+
+# ------------------------------------------------------------------
+# MANUAL TRIGGER ONLY. No push/pull_request/schedule triggers exist,
+# so this workflow will never run automatically. Trigger it from:
+# Repo -> Actions tab -> "Build SM6150 Kernel (ARM64, Manual)" -> "Run workflow"
+# ------------------------------------------------------------------
+on:
+  workflow_dispatch:
+    inputs:
+      clean_build:
+        description: "Run a clean build (sh build.sh clean)"
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    # Native ARM64 hosted runner (no QEMU emulation).
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          ref: arena/019f954b-android-kernel-xiaomi-sm6150
+          fetch-depth: 1  # shallow clone, we don't need full git history
+
+      - name: Free up disk space on runner
+        run: |
+          echo "Disk usage before cleanup:"
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/.ghcup \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          sudo docker image prune --all --force 2>/dev/null || true
+          echo "Disk usage after cleanup:"
+          df -h /
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          # Exact key almost never hits (tied to this commit), so it falls back
+          # to the newest restore-key below and reuses the last successful cache.
+          # A fresh cache entry is saved under the exact key at the end of the job.
+          key: ccache-${{ runner.os }}-arm64-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-arm64-
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            python3 zip unzip git curl kmod cpio rsync ccache \
+            device-tree-compiler gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Configure ccache
+        run: |
+          ccache --max-size=3G
+          ccache --zero-stats
+          echo "CCACHE_DIR=$HOME/.ccache" >> "$GITHUB_ENV"
+
+      - name: Patch build.sh (nproc for JOBS, wrap compiler calls with ccache)
+        run: |
+          # JOBS=1 is hardcoded in the script -> single-threaded build. Use all cores instead.
+          sed -i 's/^JOBS=1$/JOBS=$(nproc --all)/' build.sh
+
+          # Route CC / HOSTCC through ccache so repeated builds reuse cached objects.
+          sed -i 's|CC=\${CLANG_PATH}/clang \\|CC="ccache ${CLANG_PATH}/clang" \\|g' build.sh
+          sed -i 's|HOSTCC=\${CLANG_PATH}/clang \\|HOSTCC="ccache ${CLANG_PATH}/clang" \\|g' build.sh
+
+          echo "----- JOBS line -----"
+          grep -n '^JOBS=' build.sh
+          echo "----- CC / HOSTCC lines -----"
+          grep -n 'CC=' build.sh
+          echo "Runner has $(nproc --all) cores available"
+          chmod +x build.sh
+
+      - name: Run kernel build
+        id: build
+        run: |
+          set -o pipefail
+          if [ "${{ github.event.inputs.clean_build }}" = "true" ]; then
+            ./build.sh clean 2>&1 | tee build.log
+          else
+            ./build.sh 2>&1 | tee build.log
+          fi
+
+      - name: Show ccache stats
+        if: always()
+        run: ccache --show-stats
+
+      - name: Show output directory contents
+        if: always()
+        run: |
+          echo "----- out/ directory -----"
+          find out -maxdepth 2 -type f -name "*.zip" 2>/dev/null || echo "No zip found"
+          ls -la out/ 2>/dev/null || echo "out/ directory not found"
+
+      - name: Notify Telegram
+        if: always()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set +e
+
+          if [ "${{ steps.build.outcome }}" = "success" ]; then
+            STATUS_EMOJI="✅"
+            STATUS_TEXT="BUILD PASSED"
+          else
+            STATUS_EMOJI="❌"
+            STATUS_TEXT="BUILD FAILED"
+          fi
+
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          MESSAGE="$(printf '%s\n%s\n%s\n%s\n%s' \
+            "${STATUS_EMOJI} ${STATUS_TEXT}" \
+            "Repo: ${{ github.repository }}" \
+            "Branch: ${{ github.ref_name }}" \
+            "Triggered by: ${{ github.actor }}" \
+            "Run: ${RUN_URL}")"
+
+          # 1) Status message
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHAT_ID}" \
+            --data-urlencode text="${MESSAGE}"
+
+          # 2) Build log (always, if it exists)
+          if [ -f build.log ]; then
+            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+              -F chat_id="${CHAT_ID}" \
+              -F document=@build.log \
+              -F caption="Build log — ${STATUS_TEXT}"
+          fi
+
+          # 3) Kernel zip (only when the build actually succeeded and the file exists)
+          if [ "${{ steps.build.outcome }}" = "success" ] && [ -f out/Mahashunya-Kernel-Phoenix.zip ]; then
+            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+              -F chat_id="${CHAT_ID}" \
+              -F document=@out/Mahashunya-Kernel-Phoenix.zip \
+              -F caption="Mahashunya-Kernel-Phoenix.zip"
+          fi
+
+      - name: Upload build log (always, even on failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload final kernel zip
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mahashunya-Kernel-Phoenix
+          path: out/Mahashunya-Kernel-Phoenix.zip
+          if-no-files-found: error
+          retention-days: 30
