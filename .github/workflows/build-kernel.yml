@@ -48,12 +48,6 @@ jobs:
           restore-keys: |
             ccache-${{ runner.os }}-arm64-
 
-      - name: Configure ccache
-        run: |
-          ccache --max-size=3G
-          ccache --zero-stats
-          echo "CCACHE_DIR=$HOME/.ccache" >> "$GITHUB_ENV"
-
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -61,6 +55,12 @@ jobs:
             build-essential bc bison flex libssl-dev libelf-dev \
             python3 zip unzip git curl kmod cpio rsync ccache \
             device-tree-compiler gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Configure ccache
+        run: |
+          ccache --max-size=3G
+          ccache --zero-stats
+          echo "CCACHE_DIR=$HOME/.ccache" >> "$GITHUB_ENV"
 
       - name: Patch build.sh (nproc for JOBS, wrap compiler calls with ccache)
         run: |
