@@ -947,11 +947,9 @@ static int smb1390_ilim_vote_cb(struct votable *votable, void *data,
 	if (!is_psy_voter_available(chip) || chip->suspended)
 		return -EAGAIN;
 
-	/* ILIM should always have at least one active vote */
-	if (!client) {
-		pr_err("Client missing\n");
-		return -EINVAL;
-	}
+    /* No active ILIM voter during vote transitions */
+    if (!client)
+    	return 0;
 
 	ilim_uA = min(ilim_uA, (is_cps_available(chip) ?
 				MAX_ILIM_DUAL_CP_UA : MAX_ILIM_UA));
