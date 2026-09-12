@@ -374,7 +374,8 @@ void __wait_rcu_gp(bool checktiny, int n, call_rcu_func_t *crcu_array,
 	/* Initialize and register callbacks for each crcu_array element. */
 	for (i = 0; i < n; i++) {
 		if (checktiny &&
-		    (crcu_array[i] == call_rcu)) {
+		    (crcu_array[i] == call_rcu ||
+		     crcu_array[i] == call_rcu_bh)) {
 			might_sleep();
 			continue;
 		}
@@ -390,7 +391,8 @@ void __wait_rcu_gp(bool checktiny, int n, call_rcu_func_t *crcu_array,
 	/* Wait for all callbacks to be invoked. */
 	for (i = 0; i < n; i++) {
 		if (checktiny &&
-		    (crcu_array[i] == call_rcu))
+		    (crcu_array[i] == call_rcu ||
+		     crcu_array[i] == call_rcu_bh))
 			continue;
 		for (j = 0; j < i; j++)
 			if (crcu_array[j] == crcu_array[i])
