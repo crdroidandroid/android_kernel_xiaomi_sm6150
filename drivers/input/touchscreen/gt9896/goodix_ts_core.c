@@ -50,6 +50,13 @@
 #define PANEL_ORIENTATION_DEGREE_180	2	/* anticlockwise 180 degrees */
 #define PANEL_ORIENTATION_DEGREE_270	3	/* anticlockwise 270 degrees */
 
+/*
+ * How long the panel may stay silent after a frame was lost before the
+ * remaining contacts are treated as stuck.  A finger that is still down
+ * keeps streaming frames, so a held contact never hits this timeout.
+ */
+#define GOODIX_LOST_REPORT_MS		50
+
 extern int goodix_i2c_write(struct goodix_ts_device *dev, unsigned int reg, unsigned char *data, unsigned int len);
 static int goodix_ts_remove(struct platform_device *pdev);
 int goodix_start_later_init(struct goodix_ts_core *ts_core);
@@ -1257,7 +1264,34 @@ static irqreturn_t goodix_ts_threadirq_func(int irq, void *data)
 
 	/* read touch data from touch device */
 	r = ts_dev->hw_ops->event_handler(ts_dev, ts_event);
+	if (unlikely(r < 0)) {
+		/*
+		 * A touch frame that cannot be parsed (checksum error or
+		 * aborted i2c transfer) is dropped.  When the dropped frame
+		 * carried the final release, the contact stays down and the
+		 * input stack keeps seeing a held touch.
+		 *
+		 * Do not tear the contacts down right here: a spurious
+		 * interrupt also reaches this path, and a contact that is
+		 * actively used (an analog stick, a long press) must not be
+		 * dropped because of one bad read.  Retry once, then arm a
+		 * watchdog that only releases when the panel stays silent
+		 * afterwards, which is the actual symptom of a lost release.
+		 */
+		if (core_data->event_status & GOODIX_TOUCH_EVENT) {
+			r = ts_dev->hw_ops->event_handler(ts_dev, ts_event);
+			if (unlikely(r < 0) && core_data->touch_id &&
+			    !atomic_xchg(&core_data->report_lost, 1))
+				schedule_delayed_work(
+					&core_data->lost_report_work,
+					msecs_to_jiffies(GOODIX_LOST_REPORT_MS));
+		}
+	}
+
 	if (likely(r >= 0)) {
+		/* a fresh frame arrived, the panel is still alive */
+		atomic_set(&core_data->report_lost, 0);
+		cancel_delayed_work(&core_data->lost_report_work);
 		if (ts_event->event_type == EVENT_TOUCH) {
 			/* report touch */
 			goodix_ts_report_finger(core_data->input_dev,
@@ -1865,6 +1899,32 @@ static void goodix_ts_release_connects(struct goodix_ts_core *core_data)
 	ts_info("release all finger!");
 }
 
+/*
+ * Runs when a touch frame was lost and no further frame arrived in
+ * GOODIX_LOST_REPORT_MS.  Any frame that does arrive cancels the work, so
+ * only a contact whose release was really lost is released here.
+ */
+static void goodix_ts_lost_report_work(struct work_struct *work)
+{
+	struct goodix_ts_core *core_data = container_of(work,
+			struct goodix_ts_core, lost_report_work.work);
+	struct goodix_ts_device *ts_dev = core_data->ts_dev;
+
+	if (atomic_read(&core_data->suspended))
+		return;
+
+	if (!atomic_xchg(&core_data->report_lost, 0))
+		return;
+
+	mutex_lock(&ts_dev->report_mutex);
+	if (core_data->touch_id) {
+		ts_err("touch report lost, releasing stuck contacts");
+		core_data->touch_id = 0;
+		goodix_ts_release_connects(core_data);
+	}
+	mutex_unlock(&ts_dev->report_mutex);
+}
+
 /**
  * goodix_ts_suspend - Touchscreen suspend function
  * Called by PM/FB/EARLYSUSPEN module to put the device to  sleep
@@ -1963,6 +2023,7 @@ static int goodix_ts_suspend(struct goodix_ts_core *core_data)
 	goodix_ts_power_off(core_data);
 
 out:
+	cancel_delayed_work_sync(&core_data->lost_report_work);
 	goodix_ts_release_connects(core_data);
 	mutex_unlock(&core_data->work_stat);
 	ts_info("Suspend end");
@@ -3233,6 +3294,8 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	INIT_WORK(&core_data->suspend_work, goodix_ts_suspend_work);
 	INIT_WORK(&core_data->power_supply_work, goodix_power_supply_work);
 	INIT_WORK(&core_data->gesture_work, gtp_set_gesture_work);
+	INIT_DELAYED_WORK(&core_data->lost_report_work,
+			goodix_ts_lost_report_work);
 	/*
 	 * only for MTK platform
 	 * pm_qos_add_request(&core_data->tp_qos_request, PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
@@ -3358,6 +3421,7 @@ static int goodix_ts_remove(struct platform_device *pdev)
 	struct goodix_ts_core *core_data = platform_get_drvdata(pdev);
 
 	atomic_set(&core_data->initialized, 0);
+	cancel_delayed_work_sync(&core_data->lost_report_work);
 	if (atomic_read(&core_data->ts_esd.esd_on))
 		goodix_ts_esd_off(core_data);
 #ifdef CONFIG_DRM
