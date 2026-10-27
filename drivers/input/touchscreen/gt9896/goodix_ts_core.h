@@ -482,6 +482,8 @@ struct goodix_ts_core {
 	struct goodix_ts_event ts_event;
 	unsigned long touch_id;
 	unsigned long event_status;
+	struct delayed_work lost_report_work;
+	atomic_t report_lost;
 	unsigned char lockdown_info[GOODIX_LOCKDOWN_SIZE];
 	bool sleep_finger;
 
