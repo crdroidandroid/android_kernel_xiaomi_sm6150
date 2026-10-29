@@ -1758,6 +1758,16 @@ static void goodix_ts_esd_work(struct work_struct *work)
 	if (hw_ops->check_hw)
 		r = hw_ops->check_hw(core->ts_dev);
 	if (r < 0) {
+		bool irq_was_enabled = atomic_read(&core->irq_enabled);
+
+		/*
+		 * The recovery below power cycles the controller and pulls
+		 * the reset line, just like resume does.  Keep the threaded
+		 * IRQ from starting an I2C transfer while the chip is held
+		 * in reset, and restore the previous IRQ state afterwards.
+		 */
+		if (irq_was_enabled)
+			goodix_ts_irq_enable(core, false);
 		goodix_ts_power_off(core);
 		goodix_ts_power_on(core);
 		if (hw_ops->reset)
@@ -1768,6 +1778,8 @@ static void goodix_ts_esd_work(struct work_struct *work)
 					&data, 1);
 		if (r < 0)
 			ts_err("failed init dynamic esd");
+		if (irq_was_enabled)
+			goodix_ts_irq_enable(core, true);
 	} else {
 		/*init dynamic esd*/
 		r = hw_ops->write_trans(core->ts_dev,
