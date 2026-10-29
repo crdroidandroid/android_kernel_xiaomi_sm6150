@@ -2085,6 +2085,14 @@ static int goodix_ts_resume(struct goodix_ts_core *core_data)
 #endif
 
 	atomic_set(&core_data->suspended, 0);
+	/*
+	 * Quiesce the threaded IRQ before pulling the reset line.  With the
+	 * gesture module armed the interrupt stays enabled across suspend, so
+	 * a pending touch or gesture frame can still be in the middle of an
+	 * I2C read when the reset line goes low, which times out on the GENI
+	 * controller and stalls the resume path by a retry interval.
+	 */
+	goodix_ts_irq_enable(core_data, false);
 	/* resume device */
 	if (ts_dev && ts_dev->hw_ops->resume)
 		ts_dev->hw_ops->resume(ts_dev);
@@ -2123,8 +2131,6 @@ static int goodix_ts_resume(struct goodix_ts_core *core_data)
 	}
 	mutex_unlock(&goodix_modules.mutex);
 
-	goodix_ts_irq_enable(core_data, true);
-
 	/*
 	 * notify resume event, inform the esd protector
 	 * and charger detector to turn on the work
@@ -2132,6 +2138,7 @@ static int goodix_ts_resume(struct goodix_ts_core *core_data)
 	ts_info("try notify resume");
 	goodix_ts_blocking_notify(NOTIFY_RESUME, NULL);
 out:
+	goodix_ts_irq_enable(core_data, true);
 	mutex_unlock(&core_data->work_stat);
 	ts_info("Resume end");
 	return 0;
