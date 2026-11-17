@@ -1123,7 +1123,6 @@ static void goodix_ts_report_finger(struct input_dev *dev,
 	struct goodix_ts_core *core_data = input_get_drvdata(dev);
 	struct goodix_ts_device *ts_dev = core_data->ts_dev;
 	unsigned int touch_num = touch_data->touch_num;
-	static u32 pre_fin;
 	static u32 fp_event_normal;
 	static struct goodix_ts_pre_coords pre_coords[GOODIX_MAX_TOUCH];
 	int fod_up_area = -1;
@@ -1180,14 +1179,8 @@ static void goodix_ts_report_finger(struct input_dev *dev,
                        touch_data->coords[i].w, touch_data->coords[i].overlapping_area);*/
 	}
 
-	/*first touch down and last touch up condition*/
-	if (touch_num && !pre_fin)
-		input_report_key(dev, BTN_TOUCH, 1);
-	else if (!touch_num) {
-		input_report_key(dev, BTN_TOUCH, 0);
-	}
-
-	pre_fin = touch_num;
+	/* input core drops repeats, so this only emits on first down / last up */
+	input_report_key(dev, BTN_TOUCH, !!touch_num);
 
 	/* report panel key */
 	for (i = 0; i < GOODIX_MAX_TP_KEY; i++) {
@@ -2034,6 +2027,20 @@ static int goodix_ts_resume(struct goodix_ts_core *core_data)
 	if (ts_dev && ts_dev->hw_ops->resume)
 		ts_dev->hw_ops->resume(ts_dev);
 	atomic_set(&core_data->suspend_stat, TP_NO_SUSPEND);
+
+	/*
+	 * A gesture (e.g. FOD down on AOD) may have reported a press that
+	 * the IC will never release after the reset above. Drop any such
+	 * stale contacts so userspace does not see a stuck key-down.
+	 */
+	if (ts_dev) {
+		mutex_lock(&ts_dev->report_mutex);
+		goodix_ts_release_connects(core_data);
+		core_data->touch_id = 0;
+		core_data->fod_pressed = false;
+		core_data->sleep_finger = false;
+		mutex_unlock(&ts_dev->report_mutex);
+	}
 
 	mutex_lock(&goodix_modules.mutex);
 	if (!list_empty(&goodix_modules.head)) {
