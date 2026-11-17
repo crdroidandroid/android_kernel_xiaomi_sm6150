@@ -1616,6 +1616,7 @@ static int goodix_touch_handler_ys(struct goodix_ts_device *dev,
 			goto exit_clean_sta;
 		}
 	}
+	r = 0;
 	point_type = buffer[(touch_num - 1) * BYTES_PER_COORD + IRQ_HEAD_LEN_YS];
 	if (touch_num >= 1 && (point_type == 3 || point_type == 1)) {
 		if (pre_finger_num) {
@@ -1688,6 +1689,7 @@ static int goodix_touch_handler_nor(struct goodix_ts_device *dev,
 		r = -EINVAL;
 		goto exit_clean_sta;
 	}
+	r = 0;
 
 	if (touch_num >= 1 &&
 	    buffer[(touch_num - 1) * BYTES_PER_COORD + 2] >= 0x80) {
@@ -1765,9 +1767,9 @@ static int goodix_event_handler(struct goodix_ts_device *dev,
 	if (likely((event_sta & GOODIX_TOUCH_EVENT) == GOODIX_TOUCH_EVENT)) {
 		/* handle touch event */
 		if (dev->ic_type == IC_TYPE_YELLOWSTONE) {
-			goodix_touch_handler_ys(dev, ts_event, pre_buf, pre_read_len);
+			r = goodix_touch_handler_ys(dev, ts_event, pre_buf, pre_read_len);
 		} else {
-			goodix_touch_handler_nor(dev, ts_event, pre_buf, pre_read_len);
+			r = goodix_touch_handler_nor(dev, ts_event, pre_buf, pre_read_len);
 		}
 	} else if (unlikely((event_sta & GOODIX_REQUEST_EVENT) ==
 			GOODIX_REQUEST_EVENT)) {
