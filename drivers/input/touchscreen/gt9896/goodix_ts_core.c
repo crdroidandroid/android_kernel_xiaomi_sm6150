@@ -2024,6 +2024,7 @@ static int goodix_ts_suspend(struct goodix_ts_core *core_data)
 
 out:
 	cancel_delayed_work_sync(&core_data->lost_report_work);
+	atomic_set(&core_data->report_lost, 0);
 	goodix_ts_release_connects(core_data);
 	mutex_unlock(&core_data->work_stat);
 	ts_info("Suspend end");
